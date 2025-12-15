@@ -3,6 +3,47 @@
 import { useState, useRef } from "react";
 import Header from "@/components/Header";
 import PresetSelector from "@/components/PresetSelector";
+import {
+  VIDEO_MODELS,
+  getDefaultState,
+  getModelConfig,
+  calculateCredits,
+  type VideoModelId,
+  type VideoGenerationState,
+  type VideoAspectRatio,
+  type VideoDuration,
+  type VideoResolution,
+} from "@/lib/kie";
+import { Dropdown, SimpleDropdown } from "@/components/Dropdown";
+
+// Model Icons
+const KlingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M16.7522 2.86984L16.818 2.93745L16.8199 2.93552C18.087 4.25441 17.7236 6.90443 15.8863 9.90864L19.5 13.6567L19.3447 13.9703C18.7372 15.1986 17.9147 16.2992 16.9193 17.216C15.608 18.43 14.0251 19.2853 12.3143 19.7044L12.2522 19.7198L12.1634 19.7417L12.0994 19.7565L11.9584 19.7887L11.8416 19.8126L11.754 19.8299C11.6609 19.8493 11.5634 19.8673 11.4683 19.884L11.3888 19.8963L11.3286 19.904C11.2429 19.916 11.1576 19.9272 11.0727 19.9375C9.64831 20.1036 8.20616 19.9376 6.8516 19.4517C5.49703 18.9658 4.2643 18.1723 3.24348 17.1291L3.18385 17.0692C1.91429 15.7503 2.27391 13.0983 4.11366 10.0922L0.5 6.34416L0.65528 6.03054C1.26118 4.80131 2.0846 3.70115 3.08261 2.78741C4.10242 1.8473 5.28649 1.11848 6.57081 0.640344C6.86894 0.528933 7.18075 0.431691 7.48696 0.34926C7.73931 0.279139 7.9944 0.220054 8.25155 0.172163C8.33851 0.154131 8.43665 0.135456 8.53168 0.118712C10.0139 -0.12084 11.5297 0.00325476 12.9574 0.481036C14.385 0.958817 15.6847 1.77698 16.7522 2.86984ZM15.5304 3.03083H15.5267L15.5304 3.03276C14.3025 2.63864 12.354 3.27555 10.2944 4.68267C11.8615 4.22994 13.377 4.46435 14.3565 5.48057C15.2845 6.44462 15.5385 7.90777 15.187 9.44497C15.1704 9.52697 15.1497 9.61005 15.1248 9.69419C16.8062 7.05706 17.3441 4.58993 16.2795 3.48807C16.262 3.4682 16.2433 3.44949 16.2236 3.43204L16.2155 3.42431L16.2037 3.41336L16.1683 3.38503C16.153 3.37215 16.1371 3.3597 16.1205 3.34768L16.0944 3.32836C15.9242 3.19657 15.7334 3.09594 15.5304 3.03083Z"
+    />
+  </svg>
+);
+
+const WanIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <g clipPath="url(#clip0_wan)">
+      <path d="M19.9361 12.1411L17.6243 8.09523L17.3525 7.61735L18.5771 5.47657C18.6187 5.4023 18.6411 5.32158 18.6411 5.23763C18.6411 5.15367 18.6187 5.07295 18.5771 4.99868L17.215 2.61896C17.1735 2.5447 17.1127 2.48658 17.0424 2.4446C16.972 2.40262 16.8921 2.38002 16.8058 2.38002H11.6323L10.4077 0.236011C10.3245 0.0874804 10.1679 -0.00292969 9.9984 -0.00292969H7.27738C7.19425 -0.00292969 7.11111 0.0196728 7.04077 0.0616489C6.97042 0.103625 6.90967 0.161746 6.86811 0.236011L4.55316 4.28509L4.28138 4.75974H1.83213C1.749 4.75974 1.66587 4.78235 1.59552 4.82432C1.52518 4.8663 1.46443 4.92442 1.42286 4.99868L0.0639488 7.38164C0.0223821 7.4559 0 7.53663 0 7.62058C0 7.70453 0.0223821 7.78525 0.0639488 7.85952L2.65068 12.3833L1.42606 14.5273C1.38449 14.6015 1.36211 14.6823 1.36211 14.7662C1.36211 14.8502 1.38449 14.9309 1.42606 15.0051L2.78817 17.3849C2.82974 17.4591 2.89049 17.5173 2.96083 17.5592C3.03118 17.6012 3.11111 17.6238 3.19744 17.6238H8.36771L9.59233 19.7678C9.67546 19.9163 9.83214 20.0068 10.0016 20.0068H12.7226C12.8058 20.0068 12.8889 19.9842 12.9592 19.9422C13.0296 19.9002 13.0903 19.8421 13.1319 19.7678L15.7186 15.2441H18.1679C18.251 15.2441 18.3341 15.2215 18.4045 15.1795C18.4748 15.1375 18.5356 15.0794 18.5771 15.0051L19.9393 12.6254C19.9808 12.5512 20.0032 12.4704 20.0032 12.3865C20.0032 12.3025 19.9808 12.2218 19.9393 12.1475L19.9361 12.1411Z" />
+    </g>
+    <defs>
+      <clipPath id="clip0_wan">
+        <rect width="20" height="20" fill="currentColor" />
+      </clipPath>
+    </defs>
+  </svg>
+);
+
+const MODEL_ICONS: Record<VideoModelId, React.ReactNode> = {
+  "kling-2.6": <KlingIcon />,
+  "wan-2.5": <WanIcon />,
+};
 
 const FolderIcon = () => (
   <svg
@@ -110,11 +151,60 @@ export default function VideoPage() {
   const [activeTab, setActiveTab] = useState<"create" | "edit" | "draw">(
     "create"
   );
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [enhanceEnabled, setEnhanceEnabled] = useState(true);
   const [showPresetSelector, setShowPresetSelector] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState("General");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Dropdown trigger refs
+  const modelTriggerRef = useRef<HTMLButtonElement>(null);
+  const durationTriggerRef = useRef<HTMLButtonElement>(null);
+  const aspectTriggerRef = useRef<HTMLButtonElement>(null);
+  const resolutionTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Video generation state
+  const [videoState, setVideoState] = useState<VideoGenerationState>(
+    getDefaultState("kling-2.6")
+  );
+
+  // Dropdown visibility states
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showDurationDropdown, setShowDurationDropdown] = useState(false);
+  const [showAspectDropdown, setShowAspectDropdown] = useState(false);
+  const [showResolutionDropdown, setShowResolutionDropdown] = useState(false);
+
+  // Get current model config
+  const modelConfig = getModelConfig(videoState.model);
+  const credits = calculateCredits(videoState);
+
+  // Update handlers
+  const updateVideoState = (updates: Partial<VideoGenerationState>) => {
+    setVideoState((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleModelChange = (modelId: VideoModelId) => {
+    setVideoState({
+      ...getDefaultState(modelId),
+      prompt: videoState.prompt,
+      imageUrl: videoState.imageUrl,
+      mode: videoState.mode,
+    });
+    setShowModelDropdown(false);
+  };
+
+  const handleDurationChange = (duration: VideoDuration) => {
+    updateVideoState({ duration });
+    setShowDurationDropdown(false);
+  };
+
+  const handleAspectChange = (aspectRatio: VideoAspectRatio) => {
+    updateVideoState({ aspectRatio });
+    setShowAspectDropdown(false);
+  };
+
+  const handleResolutionChange = (resolution: VideoResolution) => {
+    updateVideoState({ resolution });
+    setShowResolutionDropdown(false);
+  };
 
   const handleTextareaInput = () => {
     const textarea = textareaRef.current;
@@ -183,7 +273,7 @@ export default function VideoPage() {
                 <p className="font-heading w-full truncate text-lg font-bold text-cyan-400 uppercase">
                   {selectedPreset}
                 </p>
-                <p className="text-xs text-white/80">Kling 2.6</p>
+                <p className="text-xs text-white/80">{modelConfig.name}</p>
               </figcaption>
               <button
                 className="absolute top-1.5 right-1.5 z-20 flex h-6 items-center gap-1 rounded-lg border border-white/10 bg-black/60 px-2 text-xs text-white backdrop-blur-sm transition-colors hover:bg-cyan-400 hover:text-black"
@@ -229,96 +319,204 @@ export default function VideoPage() {
             </div>
 
             {/* Prompt Section */}
-            <fieldset className="space-y-0">
-              <label className="relative block rounded-xl rounded-b-none bg-zinc-800/50 p-3 pb-1">
+            <fieldset className="rounded-xl bg-zinc-800/50">
+              <label className="relative block p-3 pb-1">
                 <span className="mb-1 text-sm font-medium text-gray-500">
                   Prompt
+                  <span className="ml-2 text-xs text-gray-600">
+                    {videoState.prompt.length}/{modelConfig.maxPromptLength}
+                  </span>
                 </span>
                 <textarea
                   ref={textareaRef}
+                  value={videoState.prompt}
+                  onChange={(e) => updateVideoState({ prompt: e.target.value })}
                   onInput={handleTextareaInput}
                   className="hide-scrollbar w-full resize-none overflow-y-auto border-none bg-transparent text-sm text-white placeholder:text-gray-500 focus:outline-none"
                   placeholder="Describe the scene you imagine, with details."
-                  style={{ height: "40px", maxHeight: "120px" }}
+                  style={{ height: "60px", maxHeight: "120px" }}
+                  maxLength={modelConfig.maxPromptLength}
                 />
               </label>
-              <div className="-mt-1.5 flex flex-wrap gap-1 rounded-t-none rounded-b-xl bg-zinc-800/50 p-3 pt-2">
-                <label
-                  className={`flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border border-transparent px-2 py-1 whitespace-nowrap transition-colors select-none ${
-                    enhanceEnabled
-                      ? "text-white"
-                      : "text-white/80 hover:text-white"
-                  }`}
-                  onClick={() => setEnhanceEnabled(!enhanceEnabled)}
-                >
-                  <EnhanceIcon />
-                  <span className="text-xs font-medium">Enhance on</span>
-                </label>
+              <div className="flex flex-wrap gap-1 p-3 pt-0">
+                {modelConfig.supportsPromptEnhancement && (
+                  <label
+                    className={`flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border border-transparent px-2 py-1 whitespace-nowrap transition-colors select-none ${
+                      videoState.enhanceEnabled
+                        ? "text-white"
+                        : "text-white/80 hover:text-white"
+                    }`}
+                    onClick={() =>
+                      updateVideoState({ enhanceEnabled: !videoState.enhanceEnabled })
+                    }
+                  >
+                    <EnhanceIcon />
+                    <span className="text-xs font-medium">
+                      Enhance {videoState.enhanceEnabled ? "on" : "off"}
+                    </span>
+                  </label>
+                )}
               </div>
             </fieldset>
 
-            {/* Audio Toggle */}
-            <fieldset>
-              <div className="rounded-xl bg-zinc-800/50 p-3">
-                <div className="flex flex-row items-center justify-between gap-1.5">
-                  <div className="flex shrink-0 items-center gap-1 text-sm text-white">
-                    <span className="font-medium">Audio</span>
-                    <button className="text-gray-500">
-                      <InfoIcon />
+            {/* Audio Toggle - Only show if model supports audio */}
+            {modelConfig.supportsAudio && (
+              <fieldset>
+                <div className="rounded-xl bg-zinc-800/50 p-3">
+                  <div className="flex flex-row items-center justify-between gap-1.5">
+                    <div className="flex shrink-0 items-center gap-1 text-sm text-white">
+                      <span className="font-medium">Audio</span>
+                      <button className="text-gray-500">
+                        <InfoIcon />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateVideoState({ audioEnabled: !videoState.audioEnabled })
+                      }
+                      className={`relative inline-flex h-6 w-9 shrink-0 cursor-pointer items-center rounded-full transition ${
+                        videoState.audioEnabled ? "bg-cyan-400" : "bg-zinc-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none absolute top-1/2 left-0.5 h-4 w-4 -translate-y-1/2 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-in-out ${
+                          videoState.audioEnabled ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
                     </button>
                   </div>
-                  <button
-                    onClick={() => setAudioEnabled(!audioEnabled)}
-                    className={`relative inline-flex h-6 w-9 shrink-0 cursor-pointer items-center rounded-full transition ${
-                      audioEnabled ? "bg-cyan-400" : "bg-zinc-700"
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none absolute top-1/2 left-0.5 h-4 w-4 -translate-y-1/2 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-in-out ${
-                        audioEnabled ? "translate-x-4" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
                 </div>
-              </div>
-            </fieldset>
+              </fieldset>
+            )}
 
             {/* Model Selection */}
-            <fieldset>
-              <button className="grid w-full grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-1.5 transition hover:bg-zinc-700/50">
-                <div className="grid grid-flow-row-dense auto-rows-min items-center text-left">
-                  <span className="text-xs font-medium text-gray-500">
+            <fieldset className="relative">
+              <button
+                ref={modelTriggerRef}
+                onClick={() => setShowModelDropdown(!showModelDropdown)}
+                className="grid w-full grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-2.5 text-left transition hover:bg-zinc-700/50"
+              >
+                <div className="grid">
+                  <span className="text-xs font-medium whitespace-nowrap text-gray-500">
                     Model
                   </span>
-                  <p className="text-sm font-medium text-white">Kling 2.6</p>
+                  <div className="text-sm font-medium text-white">
+                    {modelConfig.name}
+                  </div>
                 </div>
                 <ChevronDownIcon />
               </button>
+              <Dropdown
+                isOpen={showModelDropdown}
+                onClose={() => setShowModelDropdown(false)}
+                value={videoState.model}
+                onChange={(id) => handleModelChange(id as VideoModelId)}
+                triggerRef={modelTriggerRef}
+                options={Object.values(VIDEO_MODELS).map((model) => ({
+                  id: model.id,
+                  label: model.shortName,
+                  description: model.description,
+                  icon: MODEL_ICONS[model.id],
+                }))}
+              />
             </fieldset>
 
             {/* Duration & Aspect Ratio */}
             <fieldset>
               <div className="flex w-full items-center gap-2">
-                <button className="grid flex-1 grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-1.5 text-left transition hover:bg-zinc-700/50">
-                  <div className="grid">
-                    <span className="text-xs font-medium whitespace-nowrap text-gray-500">
-                      Duration
-                    </span>
-                    <div className="text-sm font-medium text-white">5s</div>
-                  </div>
-                  <ChevronDownIcon />
-                </button>
-                <button className="grid flex-1 grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-1.5 text-left transition hover:bg-zinc-700/50">
-                  <div className="grid">
-                    <span className="text-xs font-medium whitespace-nowrap text-gray-500">
-                      Aspect Ratio
-                    </span>
-                    <div className="text-sm font-medium text-white">16:9</div>
-                  </div>
-                  <ChevronDownIcon />
-                </button>
+                {/* Duration Dropdown */}
+                <div className="relative flex-1">
+                  <button
+                    ref={durationTriggerRef}
+                    onClick={() => setShowDurationDropdown(!showDurationDropdown)}
+                    className="grid w-full grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-2.5 text-left transition hover:bg-zinc-700/50"
+                  >
+                    <div className="grid">
+                      <span className="text-xs font-medium whitespace-nowrap text-gray-500">
+                        Duration
+                      </span>
+                      <div className="text-sm font-medium text-white">
+                        {videoState.duration}s
+                      </div>
+                    </div>
+                    <ChevronDownIcon />
+                  </button>
+                  <SimpleDropdown
+                    isOpen={showDurationDropdown}
+                    onClose={() => setShowDurationDropdown(false)}
+                    value={videoState.duration}
+                    onChange={(id) => handleDurationChange(id as VideoDuration)}
+                    triggerRef={durationTriggerRef}
+                    options={modelConfig.durations.map((d) => ({
+                      id: d,
+                      label: `${d} seconds`,
+                    }))}
+                  />
+                </div>
+
+                {/* Aspect Ratio Dropdown */}
+                <div className="relative flex-1">
+                  <button
+                    ref={aspectTriggerRef}
+                    onClick={() => setShowAspectDropdown(!showAspectDropdown)}
+                    className="grid w-full grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-2.5 text-left transition hover:bg-zinc-700/50"
+                  >
+                    <div className="grid">
+                      <span className="text-xs font-medium whitespace-nowrap text-gray-500">
+                        Aspect Ratio
+                      </span>
+                      <div className="text-sm font-medium text-white">
+                        {videoState.aspectRatio}
+                      </div>
+                    </div>
+                    <ChevronDownIcon />
+                  </button>
+                  <SimpleDropdown
+                    isOpen={showAspectDropdown}
+                    onClose={() => setShowAspectDropdown(false)}
+                    value={videoState.aspectRatio}
+                    onChange={(id) => handleAspectChange(id as VideoAspectRatio)}
+                    triggerRef={aspectTriggerRef}
+                    options={modelConfig.aspectRatios.map((ar) => ({
+                      id: ar,
+                      label: ar,
+                    }))}
+                  />
+                </div>
               </div>
             </fieldset>
+
+            {/* Resolution - Only show if model supports multiple resolutions */}
+            {modelConfig.resolutions && modelConfig.resolutions.length > 0 && (
+              <fieldset className="relative">
+                <button
+                  ref={resolutionTriggerRef}
+                  onClick={() => setShowResolutionDropdown(!showResolutionDropdown)}
+                  className="grid w-full grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-2.5 text-left transition hover:bg-zinc-700/50"
+                >
+                  <div className="grid">
+                    <span className="text-xs font-medium whitespace-nowrap text-gray-500">
+                      Resolution
+                    </span>
+                    <div className="text-sm font-medium text-white">
+                      {videoState.resolution || modelConfig.resolutions[0]}
+                    </div>
+                  </div>
+                  <ChevronDownIcon />
+                </button>
+                <SimpleDropdown
+                  isOpen={showResolutionDropdown}
+                  onClose={() => setShowResolutionDropdown(false)}
+                  value={videoState.resolution || modelConfig.resolutions[0]}
+                  onChange={(id) => handleResolutionChange(id as VideoResolution)}
+                  triggerRef={resolutionTriggerRef}
+                  options={modelConfig.resolutions.map((res) => ({
+                    id: res,
+                    label: res,
+                  }))}
+                />
+              </fieldset>
+            )}
           </div>
 
           {/* Generate Button - Fixed at bottom */}
@@ -327,7 +525,7 @@ export default function VideoPage() {
               Generate
               <div className="flex items-center gap-0.5">
                 <SparkleIcon />
-                10
+                {credits}
               </div>
             </button>
           </div>
