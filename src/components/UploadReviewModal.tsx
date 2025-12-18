@@ -1,14 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
-interface UploadedImage {
+export interface UploadedImage {
   id: string;
-  file: File;
+  file?: File;
   preview: string;
   quality: number; // 0-100
   aspectRatio: number;
   fileKey: string; // unique key based on name + size
+  isExisting?: boolean; // true if this is an existing image URL (not a new file)
+}
+
+interface EditCharacter {
+  id: string;
+  name: string;
+  referenceImages: string[];
 }
 
 interface UploadReviewModalProps {
@@ -16,6 +24,9 @@ interface UploadReviewModalProps {
   onClose: () => void;
   initialFiles: File[];
   onGenerate: (name: string, images: UploadedImage[]) => void;
+  editCharacter?: EditCharacter | null;
+  onSaveEdit?: (id: string, name: string, images: UploadedImage[]) => void;
+  isLoading?: boolean;
 }
 
 const UploadIcon = () => (
@@ -49,10 +60,9 @@ const GenerateIcon = () => (
   </svg>
 );
 
-const MAX_IMAGES = 70;
+const MAX_IMAGES = 14;
 
-const getFileKey = (file: File): string =>
-  `${file.name}-${file.size}-${file.lastModified}`;
+const getFileKey = (file: File): string => `${file.name}-${file.size}`;
 
 function getCountRating(count: number): {
   label: string;
@@ -60,44 +70,15 @@ function getCountRating(count: number): {
   gradientFrom: string;
   gradientTo: string;
 } {
-  if (count < 10) {
+  // 6-8 images is ideal for character training
+  if (count < 4) {
     return {
-      label: "Bad",
+      label: "Too Few",
       color: "text-red-500",
       gradientFrom: "rgb(194,146,73)",
       gradientTo: "rgb(236,118,55)",
     };
-  } else if (count < 20) {
-    return {
-      label: "Good",
-      color: "text-yellow-500",
-      gradientFrom: "rgb(194,194,73)",
-      gradientTo: "rgb(236,200,55)",
-    };
-  } else {
-    return {
-      label: "Excellent",
-      color: "text-cyan-400",
-      gradientFrom: "rgb(73,194,140)",
-      gradientTo: "rgb(209,254,23)",
-    };
-  }
-}
-
-function getQualityRating(avgQuality: number): {
-  label: string;
-  color: string;
-  gradientFrom: string;
-  gradientTo: string;
-} {
-  if (avgQuality < 40) {
-    return {
-      label: "Bad",
-      color: "text-red-500",
-      gradientFrom: "rgb(194,146,73)",
-      gradientTo: "rgb(236,118,55)",
-    };
-  } else if (avgQuality < 70) {
+  } else if (count < 6) {
     return {
       label: "Good",
       color: "text-yellow-500",
@@ -119,22 +100,60 @@ export default function UploadReviewModal({
   onClose,
   initialFiles,
   onGenerate,
+  editCharacter,
+  onSaveEdit,
+  isLoading = false,
 }: UploadReviewModalProps) {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [characterName, setCharacterName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditMode = !!editCharacter;
+
+  // Load existing character data in edit mode
+  useEffect(() => {
+    if (editCharacter) {
+      setCharacterName(editCharacter.name);
+      const loadExistingImages = async () => {
+        const existingImages: UploadedImage[] = await Promise.all(
+          editCharacter.referenceImages.map(async (url, index) => {
+            const aspectRatio = await getImageAspectRatio(url);
+            return {
+              id: `existing-${index}`,
+              preview: url,
+              quality: 80,
+              aspectRatio,
+              fileKey: url,
+              isExisting: true,
+            };
+          })
+        );
+        setImages(existingImages);
+      };
+      loadExistingImages();
+    }
+  }, [editCharacter]);
 
   // Convert files to uploadable images with preview URLs
   useEffect(() => {
-    if (initialFiles.length > 0) {
+    if (initialFiles.length > 0 && !isEditMode) {
       const loadImages = async () => {
         const seenKeys = new Set<string>();
+        let duplicateCount = 0;
         const uniqueFiles = initialFiles.filter((file) => {
           const key = getFileKey(file);
-          if (seenKeys.has(key)) return false;
+          if (seenKeys.has(key)) {
+            duplicateCount++;
+            return false;
+          }
           seenKeys.add(key);
           return true;
         });
+
+        // Show toast if duplicates were found
+        if (duplicateCount > 0) {
+          toast.error(
+            `${duplicateCount} duplicate image${duplicateCount > 1 ? "s" : ""} skipped`
+          );
+        }
 
         const newImages: UploadedImage[] = await Promise.all(
           uniqueFiles.map(async (file, index) => {
@@ -157,11 +176,13 @@ export default function UploadReviewModal({
     }
 
     return () => {
-      // Cleanup preview URLs
-      images.forEach((img) => URL.revokeObjectURL(img.preview));
+      // Cleanup preview URLs (only for blob URLs, not existing image URLs)
+      images.forEach((img) => {
+        if (!img.isExisting) URL.revokeObjectURL(img.preview);
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialFiles]);
+  }, [initialFiles, isEditMode]);
 
   const getImageAspectRatio = (src: string): Promise<number> => {
     return new Promise((resolve) => {
@@ -180,30 +201,50 @@ export default function UploadReviewModal({
     if (isOpen) {
       document.addEventListener("keydown", handleEscape);
       document.body.style.overflow = "hidden";
+    } else {
+      // Reset form when modal closes
+      if (!editCharacter) {
+        setCharacterName("");
+        setImages([]);
+      }
     }
 
     return () => {
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "unset";
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, editCharacter]);
 
   const handleAddMoreImages = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const files = e.target.files;
     if (files) {
-      // Get existing file keys
-      const existingKeys = new Set(images.map((img) => img.fileKey));
+      // Get existing file keys (only from non-URL images, i.e., newly uploaded ones)
+      // URL-based images (isExisting) can't be compared by filename
+      const existingKeys = new Set(
+        images.filter((img) => !img.isExisting).map((img) => img.fileKey)
+      );
 
-      // Filter out duplicates
+      // Filter out duplicates and track count
       const seenKeys = new Set<string>();
+      let duplicateCount = 0;
       const uniqueNewFiles = Array.from(files).filter((file) => {
         const key = getFileKey(file);
-        if (existingKeys.has(key) || seenKeys.has(key)) return false;
+        if (existingKeys.has(key) || seenKeys.has(key)) {
+          duplicateCount++;
+          return false;
+        }
         seenKeys.add(key);
         return true;
       });
+
+      // Show toast if duplicates were found
+      if (duplicateCount > 0) {
+        toast.error(
+          `${duplicateCount} duplicate image${duplicateCount > 1 ? "s" : ""} skipped`
+        );
+      }
 
       if (uniqueNewFiles.length > 0) {
         const newImages: UploadedImage[] = await Promise.all(
@@ -238,22 +279,17 @@ export default function UploadReviewModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (images.length === 0 || !characterName.trim()) return;
-    setIsSubmitting(true);
-    onGenerate(characterName, images);
+    if (images.length === 0 || !characterName.trim() || isLoading) return;
+    if (isEditMode && editCharacter && onSaveEdit) {
+      onSaveEdit(editCharacter.id, characterName, images);
+    } else {
+      onGenerate(characterName, images);
+    }
   };
 
   const imageCount = images.length;
   const countPercentage = Math.min((imageCount / MAX_IMAGES) * 100, 100);
-  const avgQuality =
-    images.length > 0
-      ? Math.round(
-          images.reduce((sum, img) => sum + img.quality, 0) / images.length
-        )
-      : 0;
-
   const countRating = getCountRating(imageCount);
-  const qualityRating = getQualityRating(avgQuality);
 
   return (
     <div
@@ -325,16 +361,16 @@ export default function UploadReviewModal({
           className="sticky bottom-4 z-10 grid grid-cols-12 grid-rows-[auto_4rem] gap-2 rounded-2xl border border-zinc-700/50 bg-[rgba(19,19,19,0.9)] p-3 backdrop-blur-lg md:bottom-8 lg:grid-rows-1"
         >
           {/* Stats Section */}
-          <div className="relative col-span-12 grid grid-cols-2 items-center lg:col-span-7">
+          <div className="col-span-12 flex items-center lg:col-span-7">
             {/* Images Count */}
-            <div className="items-center rounded-l-xl border-y border-l border-zinc-700/50 px-3 py-3 md:px-4">
+            <div className="w-full items-center rounded-xl border border-zinc-700/50 px-3 py-3 md:px-4">
               <div className="grid grid-flow-row-dense auto-rows-min items-center md:grid-cols-[1fr_auto]">
                 <p className="truncate text-xs text-gray-400 md:order-1 md:text-sm">
                   Images count
                 </p>
                 <div className="grid grid-cols-[auto_1fr] items-center gap-1 md:gap-3">
                   <p
-                    className={`font-heading truncate text-xs font-bold uppercase md:text-sm ${countRating.color}`}
+                    className={`font-heading truncate text-[10px] font-bold uppercase md:text-xs ${countRating.color}`}
                   >
                     {countRating.label}
                   </p>
@@ -356,37 +392,6 @@ export default function UploadReviewModal({
                 />
               </div>
             </div>
-
-            {/* Divider */}
-            <hr className="absolute top-1/2 left-1/2 h-10 w-px -translate-x-1/2 -translate-y-1/2 border-none bg-zinc-700/50" />
-
-            {/* Average Quality */}
-            <div className="items-center rounded-r-xl border-y border-r border-zinc-700/50 px-3 py-3 md:px-4">
-              <div className="grid grid-flow-row-dense auto-rows-min items-center md:grid-cols-[1fr_auto]">
-                <p className="truncate text-xs text-gray-400 md:order-1 md:text-sm">
-                  Average quality
-                </p>
-                <div className="grid grid-cols-[auto_1fr] items-center gap-1 md:gap-3">
-                  <p
-                    className={`font-heading truncate text-xs font-bold uppercase md:text-sm ${qualityRating.color}`}
-                  >
-                    {qualityRating.label}
-                  </p>
-                </div>
-              </div>
-              <div
-                role="progressbar"
-                className="relative mt-1 w-full rounded-full bg-zinc-700 p-px md:p-1"
-              >
-                <div
-                  className="h-1.5 rounded-full transition-all duration-300 md:h-3"
-                  style={{
-                    width: `${avgQuality}%`,
-                    background: `linear-gradient(to right, ${qualityRating.gradientFrom}, ${qualityRating.gradientTo})`,
-                  }}
-                />
-              </div>
-            </div>
           </div>
 
           {/* Name Input and Generate Button */}
@@ -397,6 +402,7 @@ export default function UploadReviewModal({
               </span>
               <input
                 required
+                maxLength={30}
                 placeholder="Type here..."
                 className="font-heading h-5 w-full bg-transparent text-xs font-bold text-white outline-none placeholder:text-zinc-500 md:text-sm"
                 type="text"
@@ -405,16 +411,51 @@ export default function UploadReviewModal({
                 name="name"
               />
             </label>
-            <button
-              type="submit"
-              disabled={
-                images.length === 0 || !characterName.trim() || isSubmitting
-              }
-              className="col-span-6 inline-grid h-full grid-flow-col items-center justify-center gap-2 rounded-xl border border-cyan-400 bg-cyan-400 px-4 text-sm font-medium text-black transition-all duration-300 hover:bg-cyan-500 disabled:cursor-not-allowed disabled:border-zinc-600 disabled:bg-zinc-700 disabled:text-zinc-400 lg:col-span-5"
+            <div
+              className={`relative col-span-6 lg:col-span-5 ${isLoading ? "spinning-border" : ""}`}
             >
-              Generate
-              <GenerateIcon />
-            </button>
+              <button
+                type="submit"
+                disabled={
+                  images.length === 0 || !characterName.trim() || isLoading
+                }
+                className={`relative z-10 inline-grid h-full w-full grid-flow-col items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium transition-all duration-300 ${
+                  isLoading
+                    ? "bg-zinc-800 text-white"
+                    : "border border-cyan-400 bg-cyan-400 text-black hover:bg-cyan-500 disabled:cursor-not-allowed disabled:border-zinc-600 disabled:bg-zinc-700 disabled:text-zinc-400"
+                }`}
+              >
+                {isLoading ? (
+                  <>
+                    <svg
+                      className="h-4 w-4 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    {isEditMode ? "Save" : "Generate"}
+                    <GenerateIcon />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>

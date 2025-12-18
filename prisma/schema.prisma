@@ -1,8 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -22,13 +20,34 @@ model GeneratedImage {
 
 model ApiKey {
   id        String   @id @default(uuid())
-  name      String   // e.g., "KIE_API_KEY", "OPENAI_API_KEY"
-  key       String   // The actual API key value
-  service   String   // e.g., "kie", "openai", "replicate"
+  name      String
+  key       String
+  service   String   @unique
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([service])
   @@map("api_keys")
+}
+
+model Character {
+  id              String   @id @default(uuid())
+  name            String
+  referenceImages String[] @map("reference_images")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("characters")
+}
+
+model Product {
+  id              String   @id @default(uuid())
+  name            String
+  referenceImages String[] @map("reference_images")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("products")
 }

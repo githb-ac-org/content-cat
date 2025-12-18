@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0;
 
     if (hasImages) {
-      // Image editing mode
+      // Image editing mode with reference images
       const result = await client.editImage({
         prompt,
         image_urls: imageUrls,

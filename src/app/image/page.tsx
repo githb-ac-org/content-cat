@@ -16,6 +16,10 @@ import {
 export default function ImagePage() {
   const searchParams = useSearchParams();
   const initialPrompt = searchParams.get("prompt") || "";
+  const initialModel = searchParams.get("model") || undefined;
+  const initialCharacterId = searchParams.get("characterId") || undefined;
+  const initialProductId = searchParams.get("productId") || undefined;
+  const initialSubModel = initialCharacterId || initialProductId || undefined;
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
@@ -232,6 +236,8 @@ export default function ImagePage() {
       <ImagePromptForm
         onSubmit={handleGenerate}
         initialPrompt={initialPrompt}
+        initialModel={initialModel}
+        initialSubModel={initialSubModel}
         recreateData={recreateData}
         editData={editData}
       />

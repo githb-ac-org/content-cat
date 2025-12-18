@@ -59,7 +59,7 @@ export interface NanoBananaProInput {
 export interface NanoBananaProEditInput {
   /** The editing instruction prompt (required) */
   prompt: string;
-  /** Array of input image URLs for editing (required, max 2) */
+  /** Array of input image URLs for editing (required, max 14) */
   image_urls: string[];
   /** Aspect ratio of the output. Use "auto" to preserve original. Default: "auto" */
   aspect_ratio?: AspectRatio;
@@ -107,7 +107,7 @@ export const DEFAULT_RESOLUTION: Resolution = "1K";
 export const DEFAULT_OUTPUT_FORMAT: OutputFormat = "png";
 
 export const MAX_PROMPT_LENGTH = 10000;
-export const MAX_REFERENCE_IMAGES = 2;
+export const MAX_REFERENCE_IMAGES = 14;
 export const MAX_IMAGE_SIZE_MB = 30;
 
 /**

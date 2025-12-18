@@ -112,12 +112,11 @@ export default function UploadModal({
             </div>
             <div className="grid grid-flow-row auto-rows-min">
               <p className="font-heading text-sm font-bold text-white uppercase">
-                Upload 20+ photos for best results
+                Upload 6-8 photos for best results
               </p>
               <p className="text-sm text-gray-400">
-                Upload high-quality images of one person. The more images you
-                provide, the better the result - show different angles, clear
-                facial expressions, and consistent identity
+                Upload high-quality images. Show different angles, clear facial
+                expressions, and good lighting
               </p>
             </div>
           </div>
@@ -132,6 +131,7 @@ export default function UploadModal({
                   src={photo.image}
                   alt={`Good reference photo ${photo.id}`}
                   fill
+                  sizes="(max-width: 768px) 96px, 20vw"
                   className="object-cover"
                 />
                 <div className="z-20 grid h-6 w-6 items-center justify-center rounded-lg bg-cyan-400 text-black">
@@ -169,6 +169,7 @@ export default function UploadModal({
                   src={photo.image}
                   alt={`Bad reference photo ${photo.id}`}
                   fill
+                  sizes="(max-width: 768px) 96px, 20vw"
                   className="object-cover"
                 />
                 <div className="z-20 grid h-6 w-6 items-center justify-center rounded-lg bg-red-500 text-white">

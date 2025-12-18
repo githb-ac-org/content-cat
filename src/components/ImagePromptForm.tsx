@@ -31,18 +31,6 @@ const ChevronDownIcon = () => (
   </svg>
 );
 
-const DrawIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path
-      fill="none"
-      d="M7.55929 15.125C6.80178 14.9323 5.23971 14.4539 3.55888 12.743C0.749296 9.88327 0.0300494 5.97875 1.95239 4.02207C3.53188 2.41436 6.59253 2.53853 9.125 4.25M11.75 6.875C13.9356 9.44282 14.5373 11.8324 12.8604 13.1979C11.6042 14.2208 10.0146 13.0379 9.08705 12.126M6.875 9.125H8.71079C8.976 9.125 9.23036 9.01964 9.41789 8.83211L14.4156 3.83439C14.807 3.44298 14.806 2.80805 14.4133 2.4179L13.5684 1.57841C13.1772 1.1897 12.5451 1.1911 12.1556 1.58154L7.16703 6.58225C6.98002 6.76972 6.875 7.02371 6.875 7.2885V9.125Z"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 const SparkleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 20 20" className="h-4 w-4">
     <path
@@ -66,16 +54,24 @@ const AutoIcon = () => (
 );
 
 const modelOptions = [
-  { value: "nano_banana_2", label: "Nano Banana Pro" },
-  { value: "nano_banana", label: "Nano Banana" },
-  { value: "soul", label: "Soul" },
-  { value: "face_swap", label: "Face Swap" },
-  { value: "character_swap", label: "Character Swap" },
-  { value: "seedream_v4_5", label: "Seedream 4.5" },
-  { value: "seedream", label: "Seedream 4.0" },
-  { value: "flux_2", label: "FLUX.2 Pro" },
-  { value: "flux_2_flex", label: "FLUX.2 Flex" },
+  { value: "nano_banana_2", label: "Default" },
+  { value: "characters", label: "Characters" },
+  { value: "products", label: "Products" },
 ];
+
+interface SavedCharacter {
+  id: string;
+  name: string;
+  referenceImages: string[];
+  thumbnailUrl: string | null;
+}
+
+interface SavedProduct {
+  id: string;
+  name: string;
+  referenceImages: string[];
+  thumbnailUrl: string | null;
+}
 
 const aspectRatioOptions = [
   { value: "auto", label: "Auto" },
@@ -386,6 +382,8 @@ interface ImagePromptFormProps {
     referenceImages: string[];
   }) => void;
   initialPrompt?: string;
+  initialModel?: string;
+  initialSubModel?: string;
   recreateData?: {
     prompt: string;
   } | null;
@@ -461,18 +459,80 @@ const compressImage = (file: File): Promise<string> => {
 export default function ImagePromptForm({
   onSubmit,
   initialPrompt = "",
+  initialModel,
+  initialSubModel,
   recreateData,
   editData,
 }: ImagePromptFormProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
-  const [model, setModel] = useState("nano_banana_2");
+  const [model, setModel] = useState(initialModel || "nano_banana_2");
+  const [subModel, setSubModel] = useState(initialSubModel || "");
   const [imageCount, setImageCount] = useState(1);
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [resolution, setResolution] = useState("1K");
   const [outputFormat, setOutputFormat] = useState("png");
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
+  const [savedCharacters, setSavedCharacters] = useState<SavedCharacter[]>([]);
+  const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const maxImages = 4;
+
+  // Fetch saved characters and products
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [charsRes, prodsRes] = await Promise.all([
+          fetch("/api/characters"),
+          fetch("/api/products"),
+        ]);
+        if (charsRes.ok) {
+          const chars = await charsRes.json();
+          setSavedCharacters(chars);
+        }
+        if (prodsRes.ok) {
+          const prods = await prodsRes.json();
+          setSavedProducts(prods);
+        }
+      } catch (error) {
+        console.error("Failed to fetch characters/products:", error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Build dynamic options for characters and products
+  const characterOptions = savedCharacters.map((c) => ({
+    value: c.id,
+    label: c.name,
+  }));
+
+  const productOptions = savedProducts.map((p) => ({
+    value: p.id,
+    label: p.name,
+  }));
+
+  // Get selected character/product reference images
+  const getSelectedReferenceImages = useCallback((): string[] => {
+    if (model === "characters" && subModel) {
+      const char = savedCharacters.find((c) => c.id === subModel);
+      return char?.referenceImages || [];
+    }
+    if (model === "products" && subModel) {
+      const prod = savedProducts.find((p) => p.id === subModel);
+      return prod?.referenceImages || [];
+    }
+    return [];
+  }, [model, subModel, savedCharacters, savedProducts]);
+
+  // Handle initial model/subModel from URL params
+  useEffect(() => {
+    if (initialModel) {
+      setModel(initialModel);
+    }
+    if (initialSubModel) {
+      setSubModel(initialSubModel);
+    }
+  }, [initialModel, initialSubModel]);
 
   // Handle recreate data
   useEffect(() => {
@@ -593,9 +653,18 @@ export default function ImagePromptForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isImagesLoading) return;
-    const imageData = referenceImages
+
+    // Get manually uploaded reference images (base64)
+    const uploadedImageData = referenceImages
       .filter((img) => img.base64)
       .map((img) => img.base64 as string);
+
+    // Get character/product reference images (URLs)
+    const savedReferenceImages = getSelectedReferenceImages();
+
+    // Combine both - saved images first, then uploaded
+    const allReferenceImages = [...savedReferenceImages, ...uploadedImageData];
+
     onSubmit?.({
       prompt,
       model,
@@ -603,7 +672,7 @@ export default function ImagePromptForm({
       aspectRatio,
       resolution,
       outputFormat,
-      referenceImages: imageData,
+      referenceImages: allReferenceImages,
     });
   };
 
@@ -730,8 +799,43 @@ export default function ImagePromptForm({
             <SelectDropdown
               options={modelOptions}
               value={model}
-              onChange={setModel}
+              onChange={(value) => {
+                setModel(value);
+                setSubModel("");
+              }}
             />
+
+            {/* Secondary selector for Characters/Products */}
+            {model === "characters" && characterOptions.length > 0 && (
+              <SelectDropdown
+                options={characterOptions}
+                value={subModel}
+                onChange={setSubModel}
+              />
+            )}
+            {model === "characters" && characterOptions.length === 0 && (
+              <a
+                href="/create-character"
+                className="flex h-10 items-center gap-2 rounded-xl border border-dashed border-zinc-600 bg-zinc-800/30 px-3 text-sm text-gray-400 transition hover:border-cyan-400/50 hover:text-cyan-400"
+              >
+                + Create a character
+              </a>
+            )}
+            {model === "products" && productOptions.length > 0 && (
+              <SelectDropdown
+                options={productOptions}
+                value={subModel}
+                onChange={setSubModel}
+              />
+            )}
+            {model === "products" && productOptions.length === 0 && (
+              <a
+                href="/products"
+                className="flex h-10 items-center gap-2 rounded-xl border border-dashed border-zinc-600 bg-zinc-800/30 px-3 text-sm text-gray-400 transition hover:border-cyan-400/50 hover:text-cyan-400"
+              >
+                + Create a product
+              </a>
+            )}
 
             {/* Image count selector */}
             <div className="flex h-10 items-center gap-1 rounded-xl border border-zinc-700/50 bg-zinc-800/50 px-3">
@@ -781,15 +885,6 @@ export default function ImagePromptForm({
               onChange={setOutputFormat}
               icon={<FormatIcon />}
             />
-
-            {/* Draw button */}
-            <button
-              type="button"
-              className="flex h-10 cursor-pointer items-center gap-1 rounded-xl border border-zinc-700/50 bg-zinc-800/50 px-3 text-sm font-medium text-white transition hover:bg-zinc-700/50"
-            >
-              <DrawIcon />
-              Draw
-            </button>
           </div>
         </div>
 

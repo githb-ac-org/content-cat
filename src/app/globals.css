@@ -142,3 +142,37 @@ select,
   );
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
+
+/* Spinning border effect */
+.spinning-border {
+  border-radius: 0.75rem;
+  padding: 2px;
+  background: conic-gradient(from var(--angle), #22d3ee, transparent 80%);
+  animation: spin-border 1s linear infinite;
+}
+
+.spinning-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.75rem;
+  padding: 2px;
+  background: conic-gradient(from var(--angle), #22d3ee, transparent 80%);
+  animation: spin-border 1s linear infinite;
+  z-index: 0;
+}
+
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes spin-border {
+  from {
+    --angle: 0deg;
+  }
+  to {
+    --angle: 360deg;
+  }
+}
