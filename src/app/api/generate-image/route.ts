@@ -15,6 +15,7 @@ import {
 } from "@/lib/rate-limit";
 import { withTimeout, TIMEOUTS, TimeoutError } from "@/lib/utils/timeout";
 import { requireAuth } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   const { user, error: authError } = await requireAuth(request);
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   // Rate limiting for expensive generation operations
   const clientId = getClientIdentifier(request);
-  const rateLimitResult = checkRateLimit(clientId, RATE_LIMITS.generation);
+  const rateLimitResult = await checkRateLimit(clientId, RATE_LIMITS.generation);
 
   if (!rateLimitResult.success) {
     return NextResponse.json(
@@ -138,7 +139,9 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (error) {
-    console.error("Image generation error:", error);
+    logger.error("Image generation error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
 
     // Handle timeout errors specifically
     if (error instanceof TimeoutError) {

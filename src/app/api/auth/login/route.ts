@@ -11,6 +11,7 @@ import {
   getClientIdentifier,
   createRateLimitHeaders,
 } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // Stricter rate limit for login attempts
 const LOGIN_RATE_LIMIT = { limit: 5, windowMs: 60000 }; // 5 attempts per minute
@@ -18,7 +19,7 @@ const LOGIN_RATE_LIMIT = { limit: 5, windowMs: 60000 }; // 5 attempts per minute
 export async function POST(request: Request) {
   // Rate limiting for login attempts
   const clientId = getClientIdentifier(request);
-  const rateLimitResult = checkRateLimit(clientId, LOGIN_RATE_LIMIT);
+  const rateLimitResult = await checkRateLimit(clientId, LOGIN_RATE_LIMIT);
 
   if (!rateLimitResult.success) {
     return NextResponse.json(
@@ -81,7 +82,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Login error:", error);
+    logger.error("Login error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "An error occurred during login" },
       { status: 500 }

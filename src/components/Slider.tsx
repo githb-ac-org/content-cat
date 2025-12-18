@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 interface SliderProps {
   min?: number;
@@ -18,9 +18,9 @@ export default function Slider({
   className = "",
 }: SliderProps) {
   const [internalValue, setInternalValue] = useState(3);
+  const [isDragging, setIsDragging] = useState(false);
   const value = controlledValue ?? internalValue;
   const trackRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
 
   const percentage = ((value - min) / (max - min)) * 100;
 
@@ -40,24 +40,32 @@ export default function Slider({
     [min, max, onChange]
   );
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    isDragging.current = true;
-    updateValue(e.clientX);
+  // Handle mouse events with proper cleanup using useEffect
+  useEffect(() => {
+    if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging.current) {
-        updateValue(e.clientX);
-      }
+      updateValue(e.clientX);
     };
 
     const handleMouseUp = () => {
-      isDragging.current = false;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      setIsDragging(false);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+
+    // Cleanup function removes event listeners when component unmounts
+    // or when isDragging becomes false
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, updateValue]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    updateValue(e.clientX);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

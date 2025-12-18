@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 // DELETE /api/videos/[id] - Delete a video
 export async function DELETE(
@@ -20,7 +21,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete video:", error);
+    logger.error("Failed to delete video", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to delete video" },
       { status: 500 }
@@ -49,7 +52,9 @@ export async function GET(
 
     return NextResponse.json(video);
   } catch (error) {
-    console.error("Failed to fetch video:", error);
+    logger.error("Failed to fetch video", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to fetch video" },
       { status: 500 }

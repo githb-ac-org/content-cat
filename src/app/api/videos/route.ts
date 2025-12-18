@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
@@ -56,7 +57,9 @@ export async function GET(request: Request) {
       hasMore,
     });
   } catch (error) {
-    console.error("Failed to fetch videos:", error);
+    logger.error("Failed to fetch videos", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to fetch videos" },
       { status: 500 }
@@ -109,7 +112,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(video, { status: 201 });
   } catch (error) {
-    console.error("Failed to create video:", error);
+    logger.error("Failed to create video", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to create video" },
       { status: 500 }

@@ -16,6 +16,7 @@ import {
 } from "@/lib/rate-limit";
 import { withTimeout, TIMEOUTS, TimeoutError } from "@/lib/utils/timeout";
 import { requireAuth } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   const { user, error: authError } = await requireAuth(request);
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   // Rate limiting for expensive generation operations
   const clientId = getClientIdentifier(request);
-  const rateLimitResult = checkRateLimit(clientId, RATE_LIMITS.generation);
+  const rateLimitResult = await checkRateLimit(clientId, RATE_LIMITS.generation);
 
   if (!rateLimitResult.success) {
     return NextResponse.json(
@@ -76,11 +77,10 @@ export async function POST(request: NextRequest) {
 
     const modelId = (model || "kling-2.6") as VideoModelId;
 
-    // Log input for debugging
-    console.log("Video generation request:", {
+    // Log input for debugging (sanitized)
+    logger.debug("Video generation request", {
       modelId,
       mode,
-      prompt: prompt?.substring(0, 50),
       aspectRatio,
       duration,
       audioEnabled,
@@ -200,7 +200,9 @@ export async function POST(request: NextRequest) {
       id: video.id,
     });
   } catch (error: unknown) {
-    console.error("Video generation error:", error);
+    logger.error("Video generation error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
 
     // Handle timeout errors specifically
     if (error instanceof TimeoutError) {
@@ -210,10 +212,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log more details for debugging
-    if (error && typeof error === "object" && "body" in error) {
-      console.error("Error body:", JSON.stringify((error as { body: unknown }).body, null, 2));
-    }
     const errorMsg =
       error instanceof Error ? error.message : "Failed to generate video";
     const parsed = parseFalError(errorMsg);

@@ -16,6 +16,7 @@
     "@fal-ai/client": "^1.2.1",
     "@prisma/adapter-pg": "^7.2.0",
     "dotenv": "^17.2.3",
+    "ioredis": "^5.8.2",
     "next": "16.0.10",
     "pg": "^8.16.3",
     "react": "19.2.1",

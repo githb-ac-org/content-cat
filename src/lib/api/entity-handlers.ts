@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export type EntityType = "character" | "product";
 
@@ -28,7 +29,9 @@ export function createListHandler(entityType: EntityType) {
 
       return NextResponse.json(entities);
     } catch (error) {
-      console.error(`Failed to fetch ${entityType}s:`, error);
+      logger.error(`Failed to fetch ${entityType}s`, {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       return NextResponse.json(
         { error: `Failed to fetch ${entityType}s` },
         { status: 500 }
@@ -68,7 +71,9 @@ export function createCreateHandler(entityType: EntityType) {
 
       return NextResponse.json(entity, { status: 201 });
     } catch (error) {
-      console.error(`Failed to create ${entityType}:`, error);
+      logger.error(`Failed to create ${entityType}`, {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       return NextResponse.json(
         { error: `Failed to create ${entityType}` },
         { status: 500 }
@@ -102,7 +107,9 @@ export function createGetByIdHandler(entityType: EntityType) {
 
       return NextResponse.json(entity);
     } catch (error) {
-      console.error(`Failed to fetch ${entityType}:`, error);
+      logger.error(`Failed to fetch ${entityType}`, {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       return NextResponse.json(
         { error: `Failed to fetch ${entityType}` },
         { status: 500 }
@@ -130,7 +137,9 @@ export function createDeleteHandler(entityType: EntityType) {
 
       return NextResponse.json({ success: true });
     } catch (error) {
-      console.error(`Failed to delete ${entityType}:`, error);
+      logger.error(`Failed to delete ${entityType}`, {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       return NextResponse.json(
         { error: `Failed to delete ${entityType}` },
         { status: 500 }
@@ -140,6 +149,7 @@ export function createDeleteHandler(entityType: EntityType) {
 }
 
 // PATCH handler - Update entity only if belongs to current user
+// Uses atomic update with ownership check to prevent race conditions
 export function createUpdateHandler(entityType: EntityType) {
   return async function PATCH(
     request: Request,
@@ -164,27 +174,36 @@ export function createUpdateHandler(entityType: EntityType) {
         updateData.thumbnailUrl = referenceImages[0];
       }
 
-      // First verify the entity belongs to the user
-      const existing =
+      // Atomic update with ownership check - prevents race condition
+      const result =
         entityType === "character"
-          ? await prisma.character.findFirst({ where: { id, userId: user!.id } })
-          : await prisma.product.findFirst({ where: { id, userId: user!.id } });
+          ? await prisma.character.updateMany({
+              where: { id, userId: user!.id },
+              data: updateData,
+            })
+          : await prisma.product.updateMany({
+              where: { id, userId: user!.id },
+              data: updateData,
+            });
 
-      if (!existing) {
+      if (result.count === 0) {
         return NextResponse.json(
           { error: `${capitalizeFirst(entityType)} not found` },
           { status: 404 }
         );
       }
 
+      // Fetch the updated entity to return
       const entity =
         entityType === "character"
-          ? await prisma.character.update({ where: { id }, data: updateData })
-          : await prisma.product.update({ where: { id }, data: updateData });
+          ? await prisma.character.findUnique({ where: { id } })
+          : await prisma.product.findUnique({ where: { id } });
 
       return NextResponse.json(entity);
     } catch (error) {
-      console.error(`Failed to update ${entityType}:`, error);
+      logger.error(`Failed to update ${entityType}`, {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       return NextResponse.json(
         { error: `Failed to update ${entityType}` },
         { status: 500 }

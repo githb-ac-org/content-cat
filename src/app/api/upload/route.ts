@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { getApiKey } from "@/lib/services/apiKeyService";
 import { requireAuth } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   const { user, error: authError } = await requireAuth(request);
@@ -36,7 +37,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ urls: uploadedUrls });
   } catch (error) {
-    console.error("Upload error:", error);
+    logger.error("Upload error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to upload files" },
       { status: 500 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -19,7 +20,9 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Auth check error:", error);
+    logger.error("Auth check error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "An error occurred" },
       { status: 500 }

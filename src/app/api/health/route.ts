@@ -33,10 +33,11 @@ export async function GET() {
       status: "up",
       latencyMs: Date.now() - dbStart,
     };
-  } catch (error) {
+  } catch {
+    // Don't expose database error details in production
     health.checks.database = {
       status: "down",
-      error: error instanceof Error ? error.message : "Unknown database error",
+      error: "Database connection failed",
     };
     health.status = "unhealthy";
   }

@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { GeneratedVideo } from "@/components/video";
+import { apiFetch } from "@/lib/csrf";
 
 export function useVideoHistory() {
   const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
@@ -18,7 +19,7 @@ export function useVideoHistory() {
       const url = cursor
         ? `/api/videos?cursor=${cursor}&limit=20`
         : "/api/videos?limit=20";
-      const response = await fetch(url);
+      const response = await apiFetch(url, { timeout: 15000 });
       if (response.ok) {
         const result = await response.json();
         if (cursor) {
@@ -66,7 +67,10 @@ export function useVideoHistory() {
       setGeneratedVideos((prev) => prev.filter((v) => v.id !== id));
 
       try {
-        const response = await fetch(`/api/videos/${id}`, { method: "DELETE" });
+        const response = await apiFetch(`/api/videos/${id}`, {
+          method: "DELETE",
+          timeout: 15000,
+        });
         if (!response.ok) {
           toast.error("Failed to delete video");
           fetchVideos(); // Revert on error

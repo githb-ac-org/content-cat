@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fal, configureFalClient } from "@/lib/fal";
+import { logger } from "@/lib/logger";
 
 // POST /api/api-keys/validate - Validate an API key
 export async function POST(request: Request) {
@@ -70,7 +71,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ isValid, message });
   } catch (error) {
-    console.error("Failed to validate API key:", error);
+    logger.error("Failed to validate API key", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to validate API key" },
       { status: 500 }

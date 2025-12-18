@@ -19,6 +19,8 @@ model GeneratedImage {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
   @@map("generated_images")
 }
 
@@ -88,6 +90,8 @@ model GeneratedVideo {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
   @@map("generated_videos")
 }
 
@@ -122,5 +126,6 @@ model Session {
 
   @@index([token])
   @@index([userId])
+  @@index([expiresAt])
   @@map("sessions")
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
+import { encryptApiKey, decryptApiKey, maskApiKey } from "@/lib/services/apiKeyService";
+import { logger } from "@/lib/logger";
 
 // GET /api/api-keys - List all API keys (masked)
 export async function GET(request: Request) {
@@ -13,15 +15,17 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Mask the actual key values for security
+    // Decrypt and mask the actual key values for security
     const maskedKeys = apiKeys.map((key) => ({
       ...key,
-      key: key.key.slice(0, 8) + "..." + key.key.slice(-4),
+      key: maskApiKey(decryptApiKey(key.key)),
     }));
 
     return NextResponse.json(maskedKeys);
   } catch (error) {
-    console.error("Failed to fetch API keys:", error);
+    logger.error("Failed to fetch API keys", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to fetch API keys" },
       { status: 500 }
@@ -45,22 +49,27 @@ export async function POST(request: Request) {
       );
     }
 
+    // Encrypt the API key before storing
+    const encryptedKey = encryptApiKey(key);
+
     // Upsert - create or update if service already exists for this user
     const apiKey = await prisma.apiKey.upsert({
       where: { userId_service: { userId: user!.id, service } },
-      update: { name, key, isActive: true },
-      create: { userId: user!.id, name, key, service, isActive: true },
+      update: { name, key: encryptedKey, isActive: true },
+      create: { userId: user!.id, name, key: encryptedKey, service, isActive: true },
     });
 
     return NextResponse.json(
       {
         ...apiKey,
-        key: apiKey.key.slice(0, 8) + "..." + apiKey.key.slice(-4),
+        key: maskApiKey(key), // Mask the original key for response
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error("Failed to save API key:", error);
+    logger.error("Failed to save API key", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to save API key" },
       { status: 500 }
@@ -90,7 +99,9 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete API key:", error);
+    logger.error("Failed to delete API key", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to delete API key" },
       { status: 500 }

@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { env } from "./env";
+import { logger } from "./logger";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -34,7 +35,9 @@ function createPrismaClient() {
 
   // Handle pool errors
   pool.on("error", (err) => {
-    console.error("Unexpected database pool error:", err);
+    logger.error("Unexpected database pool error", {
+      error: err instanceof Error ? err.message : "Unknown error",
+    });
   });
 
   // Store pool reference for cleanup

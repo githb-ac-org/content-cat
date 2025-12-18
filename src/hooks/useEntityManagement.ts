@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Entity, UploadedImage } from "@/types/entities";
+import { apiFetch } from "@/lib/csrf";
 
 export type EntityType = "character" | "product";
 
@@ -38,17 +39,17 @@ export function useEntityManagement({
 
   const fetchEntities = useCallback(async () => {
     try {
-      const response = await fetch(apiPath);
+      const response = await apiFetch(apiPath, { timeout: 15000 });
       if (response.ok) {
         const data = await response.json();
         setEntities(data);
       }
-    } catch (error) {
-      console.error(`Failed to fetch ${entityName}s:`, error);
+    } catch {
+      // Silently fail - entities will show empty state
     } finally {
       setIsLoading(false);
     }
-  }, [apiPath, entityName]);
+  }, [apiPath]);
 
   useEffect(() => {
     fetchEntities();
@@ -64,9 +65,10 @@ export function useEntityManagement({
           if (img.file) formData.append("files", img.file);
         });
 
-        const uploadResponse = await fetch("/api/upload", {
+        const uploadResponse = await apiFetch("/api/upload", {
           method: "POST",
           body: formData,
+          timeout: 60000, // 60s for uploads
         });
 
         if (!uploadResponse.ok) {
@@ -76,13 +78,14 @@ export function useEntityManagement({
         const { urls } = await uploadResponse.json();
 
         // Create entity in database
-        const createResponse = await fetch(apiPath, {
+        const createResponse = await apiFetch(apiPath, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name,
             referenceImages: urls,
           }),
+          timeout: 15000,
         });
 
         if (!createResponse.ok) {
@@ -91,10 +94,9 @@ export function useEntityManagement({
 
         // Refresh list
         await fetchEntities();
-      } catch (error) {
-        console.error(`Failed to create ${entityName}:`, error);
+      } catch {
         alert(`Failed to create ${entityName}. Please try again.`);
-        throw error;
+        throw new Error(`Failed to create ${entityName}`);
       } finally {
         setIsCreating(false);
       }
@@ -121,9 +123,10 @@ export function useEntityManagement({
             if (img.file) formData.append("files", img.file);
           });
 
-          const uploadResponse = await fetch("/api/upload", {
+          const uploadResponse = await apiFetch("/api/upload", {
             method: "POST",
             body: formData,
+            timeout: 60000, // 60s for uploads
           });
 
           if (!uploadResponse.ok) {
@@ -138,13 +141,14 @@ export function useEntityManagement({
         const allUrls = [...existingUrls, ...newUrls];
 
         // Update entity in database
-        const updateResponse = await fetch(`${apiPath}/${id}`, {
+        const updateResponse = await apiFetch(`${apiPath}/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name,
             referenceImages: allUrls,
           }),
+          timeout: 15000,
         });
 
         if (!updateResponse.ok) {
@@ -154,10 +158,9 @@ export function useEntityManagement({
         // Refresh list
         await fetchEntities();
         setEditingEntity(null);
-      } catch (error) {
-        console.error(`Failed to update ${entityName}:`, error);
+      } catch {
         alert(`Failed to update ${entityName}. Please try again.`);
-        throw error;
+        throw new Error(`Failed to update ${entityName}`);
       } finally {
         setIsCreating(false);
       }
@@ -173,19 +176,20 @@ export function useEntityManagement({
     if (!deleteEntityId) return;
 
     try {
-      const response = await fetch(`${apiPath}/${deleteEntityId}`, {
+      const response = await apiFetch(`${apiPath}/${deleteEntityId}`, {
         method: "DELETE",
+        timeout: 15000,
       });
 
       if (response.ok) {
         setEntities((prev) => prev.filter((e) => e.id !== deleteEntityId));
       }
-    } catch (error) {
-      console.error(`Failed to delete ${entityName}:`, error);
+    } catch {
+      // Silently fail - user can retry
     } finally {
       setDeleteEntityId(null);
     }
-  }, [deleteEntityId, apiPath, entityName]);
+  }, [deleteEntityId, apiPath]);
 
   const cancelDelete = useCallback(() => {
     setDeleteEntityId(null);

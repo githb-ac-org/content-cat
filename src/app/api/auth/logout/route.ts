@@ -4,6 +4,7 @@ import {
   invalidateSession,
   deleteSessionCookie,
 } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 export async function POST() {
   try {
@@ -17,7 +18,9 @@ export async function POST() {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Logout error:", error);
+    logger.error("Logout error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     // Still delete the cookie even if there's an error
     await deleteSessionCookie();
     return NextResponse.json({ success: true });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
@@ -39,7 +40,9 @@ export async function GET(request: Request) {
       hasMore,
     });
   } catch (error) {
-    console.error("Failed to fetch images:", error);
+    logger.error("Failed to fetch images", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to fetch images" },
       { status: 500 }
@@ -74,7 +77,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(image, { status: 201 });
   } catch (error) {
-    console.error("Failed to create image:", error);
+    logger.error("Failed to create image", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Failed to create image" },
       { status: 500 }
