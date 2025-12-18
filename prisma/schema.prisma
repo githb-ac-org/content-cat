@@ -51,3 +51,21 @@ model Product {
 
   @@map("products")
 }
+
+model GeneratedVideo {
+  id            String   @id @default(uuid())
+  url           String
+  thumbnailUrl  String?  @map("thumbnail_url")
+  prompt        String
+  model         String
+  duration      Int
+  aspectRatio   String   @map("aspect_ratio")
+  resolution    String?
+  startImageUrl String?  @map("start_image_url")
+  endImageUrl   String?  @map("end_image_url")
+  audioEnabled  Boolean  @default(false) @map("audio_enabled")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("generated_videos")
+}

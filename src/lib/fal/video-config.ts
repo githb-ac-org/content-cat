@@ -31,6 +31,7 @@ export interface VideoModelConfig {
   supportsNegativePrompt: boolean;
   supportsCfgScale: boolean;
   supportsSpecialFx: boolean;
+  supportsStartEndFrames: boolean; // For models that support start/end frame inputs
   maxPromptLength: number;
   maxNegativePromptLength: number;
   maxImageSizeMB: number;
@@ -48,7 +49,8 @@ export interface VideoGenerationState {
   mode: VideoMode;
   prompt: string;
   negativePrompt?: string;
-  imageUrl?: string;
+  imageUrl?: string; // Start frame for models with start/end frame support
+  endImageUrl?: string; // End frame (optional) for models that support it
   referenceVideos?: string[];
   aspectRatio: AspectRatio;
   duration: Duration;
@@ -75,6 +77,7 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelConfig> = {
     supportsNegativePrompt: true,
     supportsCfgScale: true,
     supportsSpecialFx: false,
+    supportsStartEndFrames: false,
     maxPromptLength: 2500,
     maxNegativePromptLength: 500,
     maxImageSizeMB: 10,
@@ -97,6 +100,7 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelConfig> = {
     supportsNegativePrompt: true,
     supportsCfgScale: true,
     supportsSpecialFx: true,
+    supportsStartEndFrames: true,
     maxPromptLength: 2500,
     maxNegativePromptLength: 500,
     maxImageSizeMB: 10,
@@ -119,6 +123,7 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelConfig> = {
     supportsNegativePrompt: true,
     supportsCfgScale: false,
     supportsSpecialFx: false,
+    supportsStartEndFrames: false,
     maxPromptLength: 800,
     maxNegativePromptLength: 500,
     maxImageSizeMB: 10,
@@ -271,9 +276,11 @@ export function toKling25TurboParams(state: VideoGenerationState) {
       aspect_ratio: state.aspectRatio as "16:9" | "9:16" | "1:1",
     };
   } else {
+    // Image-to-video mode with start frame (required) and optional end frame
     return {
       ...base,
       image_url: state.imageUrl || "",
+      ...(state.endImageUrl && { tail_image_url: state.endImageUrl }),
       ...(state.specialFx && { special_fx: state.specialFx }),
     };
   }

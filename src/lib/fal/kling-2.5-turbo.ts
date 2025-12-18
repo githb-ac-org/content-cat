@@ -72,8 +72,8 @@ export interface Kling25TurboImageToVideoInput {
   negative_prompt?: string;
   /** CFG scale (0-1). Controls prompt adherence. Default: 0.5 */
   cfg_scale?: number;
-  /** Optional end frame image URL for interpolation */
-  last_image_url?: string;
+  /** Optional end/tail frame image URL for interpolation */
+  tail_image_url?: string;
   /** Special effects to apply */
   special_fx?: SpecialFx;
   /** URL of mask for dynamic brush application area */
@@ -225,7 +225,7 @@ export class Kling25TurboClient {
           duration: input.duration || DEFAULT_DURATION,
           negative_prompt: input.negative_prompt,
           cfg_scale: input.cfg_scale ?? DEFAULT_CFG_SCALE,
-          ...(input.last_image_url && { last_image_url: input.last_image_url }),
+          ...(input.tail_image_url && { tail_image_url: input.tail_image_url }),
           ...(input.special_fx && { special_fx: input.special_fx }),
           ...(input.dynamic_mask_url && {
             dynamic_mask_url: input.dynamic_mask_url,

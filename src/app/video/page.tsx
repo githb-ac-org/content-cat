@@ -1,8 +1,77 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+
+// Image compression constants
+const MAX_BASE64_SIZE = 4 * 1024 * 1024; // 4MB target for base64
+const MAX_IMAGE_DIMENSION = 2048; // Max pixels on longest side
+
+/**
+ * Compress image while maintaining high quality
+ * - Resizes if larger than MAX_IMAGE_DIMENSION
+ * - Compresses as JPEG with quality adjustment to meet size target
+ */
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      // Calculate new dimensions (maintain aspect ratio)
+      let { width, height } = img;
+      if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+        if (width > height) {
+          height = Math.round((height / width) * MAX_IMAGE_DIMENSION);
+          width = MAX_IMAGE_DIMENSION;
+        } else {
+          width = Math.round((width / height) * MAX_IMAGE_DIMENSION);
+          height = MAX_IMAGE_DIMENSION;
+        }
+      }
+
+      // Create canvas and draw resized image
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Failed to get canvas context"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Try different quality levels to meet size target
+      const qualities = [0.92, 0.85, 0.75, 0.65, 0.5];
+      for (const quality of qualities) {
+        const base64 = canvas.toDataURL("image/jpeg", quality);
+        if (base64.length <= MAX_BASE64_SIZE) {
+          resolve(base64);
+          return;
+        }
+      }
+
+      // If still too large, use lowest quality
+      resolve(canvas.toDataURL("image/jpeg", 0.5));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
+
+    img.src = url;
+  });
+};
+import { toast } from "sonner";
 import Header from "@/components/Header";
 import PresetSelector from "@/components/PresetSelector";
+import {
+  VideoGridSkeleton,
+  VideoResultCard,
+  type GeneratedVideo,
+} from "@/components/video";
 import {
   VIDEO_MODELS,
   getDefaultState,
@@ -14,7 +83,12 @@ import {
   type VideoDuration,
   type VideoResolution,
 } from "@/lib/fal";
-import { Dropdown, SimpleDropdown, GridDropdown } from "@/components/Dropdown";
+import {
+  NestedDropdown,
+  SimpleDropdown,
+  GridDropdown,
+  type NestedDropdownGroup,
+} from "@/components/Dropdown";
 
 // Import video editor presets (client-safe, no Node.js dependencies)
 import { TRANSITION_DEFINITIONS } from "@/lib/video-editor/transitions";
@@ -73,14 +147,87 @@ const MODEL_ICONS: Record<VideoModelId, React.ReactNode> = {
   "wan-2.6": <WanIcon />,
 };
 
+// Badge icons for model dropdown
+const ClockBadgeIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 3" />
+  </svg>
+);
+
+const AudioBadgeIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M11 5L6 9H2v6h4l5 4V5z" />
+    <path d="M15.54 8.46a5 5 0 010 7.07" />
+  </svg>
+);
+
+const EffectsBadgeIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z" />
+  </svg>
+);
+
+const ResolutionBadgeIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <path d="M8 21h8M12 17v4" />
+  </svg>
+);
+
+// Model groups for nested dropdown
+const MODEL_GROUPS: NestedDropdownGroup[] = [
+  {
+    id: "kling",
+    label: "Kling",
+    icon: <KlingIcon />,
+    options: [
+      {
+        id: "kling-2.6",
+        label: "Kling 2.6",
+        description: "Premium video with native audio",
+        badges: [
+          { label: "5-10s", icon: <ClockBadgeIcon /> },
+          { label: "Audio", icon: <AudioBadgeIcon /> },
+        ],
+      },
+      {
+        id: "kling-2.5-turbo",
+        label: "Kling 2.5 Turbo",
+        description: "Fast generation with effects",
+        badges: [
+          { label: "5-10s", icon: <ClockBadgeIcon /> },
+          { label: "Effects", icon: <EffectsBadgeIcon /> },
+        ],
+      },
+    ],
+  },
+  {
+    id: "wan",
+    label: "Wan",
+    icon: <WanIcon />,
+    options: [
+      {
+        id: "wan-2.6",
+        label: "Wan 2.6",
+        description: "Multi-modal with reference support",
+        badges: [
+          { label: "5-15s", icon: <ClockBadgeIcon /> },
+          { label: "720p/1080p", icon: <ResolutionBadgeIcon /> },
+        ],
+      },
+    ],
+  },
+];
+
 const FolderIcon = () => (
   <svg
-    width="24"
-    height="24"
+    width="14"
+    height="14"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.5"
+    strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
   >
@@ -90,12 +237,12 @@ const FolderIcon = () => (
 
 const BookIcon = () => (
   <svg
-    width="24"
-    height="24"
+    width="14"
+    height="14"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.5"
+    strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
   >
@@ -226,6 +373,13 @@ export default function VideoPage() {
     getDefaultState("kling-2.6")
   );
 
+  // Start/End frame state for models that support it
+  const [startImageUrl, setStartImageUrl] = useState<string | null>(null);
+  const [endImageUrl, setEndImageUrl] = useState<string | null>(null);
+  const [isSwapping, setIsSwapping] = useState(false);
+  const startImageInputRef = useRef<HTMLInputElement>(null);
+  const endImageInputRef = useRef<HTMLInputElement>(null);
+
   // Edit video state
   const [editState, setEditState] = useState<EditVideoState>(
     getDefaultEditState()
@@ -245,6 +399,12 @@ export default function VideoPage() {
   const [showSubtitleStyleDropdown, setShowSubtitleStyleDropdown] =
     useState(false);
 
+  // Video generation results state
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isLoadingVideos, setIsLoadingVideos] = useState(true);
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
+  const [showResults, setShowResults] = useState(false);
+
   // Get current model config
   const modelConfig = getModelConfig(videoState.model);
   const credits = calculatePrice(videoState);
@@ -255,11 +415,24 @@ export default function VideoPage() {
   };
 
   const handleModelChange = (modelId: VideoModelId) => {
+    const newConfig = getModelConfig(modelId);
+    const oldConfig = modelConfig;
+
+    // Reset start/end frames when switching between frame support models
+    if (oldConfig.supportsStartEndFrames !== newConfig.supportsStartEndFrames) {
+      setStartImageUrl(null);
+      setEndImageUrl(null);
+      if (startImageInputRef.current) startImageInputRef.current.value = "";
+      if (endImageInputRef.current) endImageInputRef.current.value = "";
+    }
+
     setVideoState({
       ...getDefaultState(modelId),
       prompt: videoState.prompt,
-      imageUrl: videoState.imageUrl,
-      mode: videoState.mode,
+      // Only preserve imageUrl if the new model doesn't support start/end frames
+      imageUrl: newConfig.supportsStartEndFrames ? undefined : videoState.imageUrl,
+      endImageUrl: undefined, // Always reset end image when switching models
+      mode: newConfig.supportsStartEndFrames ? "text-to-video" : videoState.mode,
     });
     setShowModelDropdown(false);
   };
@@ -284,6 +457,49 @@ export default function VideoPage() {
     if (textarea) {
       textarea.style.height = "auto";
       textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+    }
+  };
+
+  // Handle image upload for start/end frames
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: "start" | "end" | "single"
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Compress and convert to base64 data URI for fal.ai API compatibility
+      const base64Url = await compressImage(file);
+
+      if (type === "start") {
+        setStartImageUrl(base64Url);
+        updateVideoState({ imageUrl: base64Url, mode: "image-to-video" });
+      } else if (type === "end") {
+        setEndImageUrl(base64Url);
+        updateVideoState({ endImageUrl: base64Url });
+      } else {
+        // Single image upload (for non-start/end frame models)
+        updateVideoState({ imageUrl: base64Url, mode: "image-to-video" });
+      }
+    } catch (error) {
+      console.error("Failed to process image:", error);
+      toast.error("Failed to process image. Please try again.");
+    }
+  };
+
+  // Clear image
+  const clearImage = (type: "start" | "end" | "single") => {
+    if (type === "start") {
+      setStartImageUrl(null);
+      updateVideoState({ imageUrl: undefined, mode: "text-to-video" });
+      if (startImageInputRef.current) startImageInputRef.current.value = "";
+    } else if (type === "end") {
+      setEndImageUrl(null);
+      updateVideoState({ endImageUrl: undefined });
+      if (endImageInputRef.current) endImageInputRef.current.value = "";
+    } else {
+      updateVideoState({ imageUrl: undefined, mode: "text-to-video" });
     }
   };
 
@@ -320,6 +536,174 @@ export default function VideoPage() {
       label: def.name,
       description: def.description,
     }));
+  };
+
+  // Fetch videos from database on mount
+  const fetchVideos = useCallback(async () => {
+    try {
+      const response = await fetch("/api/videos");
+      if (response.ok) {
+        const videos = await response.json();
+        setGeneratedVideos(videos);
+        if (videos.length > 0) {
+          setShowResults(true);
+        }
+      }
+    } catch {
+      // Silently fail - videos will show empty state
+    } finally {
+      setIsLoadingVideos(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchVideos();
+  }, [fetchVideos]);
+
+  // Handle video generation
+  const handleGenerate = async () => {
+    if (!videoState.prompt.trim()) {
+      toast.error("Please enter a prompt");
+      return;
+    }
+
+    // Show results view and add skeleton
+    setShowResults(true);
+    setPendingCount((prev) => prev + 1);
+
+    // Fire-and-forget generation
+    const generateVideo = async () => {
+      try {
+        const response = await fetch("/api/generate-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: videoState.prompt,
+            model: videoState.model,
+            mode: videoState.mode,
+            aspectRatio: videoState.aspectRatio,
+            duration: videoState.duration,
+            resolution: videoState.resolution,
+            audioEnabled: videoState.audioEnabled,
+            enhanceEnabled: videoState.enhanceEnabled,
+            imageUrl: videoState.imageUrl,
+            endImageUrl: videoState.endImageUrl,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast.error(result.error || "Failed to generate video");
+          setPendingCount((prev) => Math.max(0, prev - 1));
+          return;
+        }
+
+        if (result.video) {
+          // Video is already saved in the database by the generate-video API
+          // Just add it to the state
+          setGeneratedVideos((prev) => [result.video, ...prev]);
+          toast.success("Video generated successfully!");
+        }
+
+        setPendingCount((prev) => Math.max(0, prev - 1));
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Something went wrong"
+        );
+        setPendingCount((prev) => Math.max(0, prev - 1));
+      }
+    };
+
+    generateVideo();
+  };
+
+  // Handle video deletion
+  const handleDeleteVideo = async (id: string) => {
+    setGeneratedVideos((prev) => prev.filter((v) => v.id !== id));
+
+    try {
+      const response = await fetch(`/api/videos/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        toast.error("Failed to delete video");
+        fetchVideos();
+      }
+    } catch {
+      toast.error("Failed to delete video");
+      fetchVideos();
+    }
+  };
+
+  // Handle video download
+  const handleDownloadVideo = async (url: string, prompt: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        toast.error("Failed to download video");
+        return;
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${prompt.slice(0, 30).replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      toast.error("Failed to download video");
+    }
+  };
+
+  // Handle rerun with same settings
+  const handleRerunVideo = (video: GeneratedVideo) => {
+    setVideoState({
+      ...getDefaultState(video.model as VideoModelId),
+      prompt: video.prompt,
+      model: video.model as VideoModelId,
+      duration: String(video.duration) as VideoDuration,
+      aspectRatio: video.aspectRatio as VideoAspectRatio,
+      resolution: video.resolution as VideoResolution,
+      imageUrl: video.startImageUrl,
+    });
+  };
+
+  // Handle attaching images from a video result to the upload form
+  // Cycles: first image -> last image -> reset to first image
+  const handleAttachImages = (imageUrl?: string) => {
+    if (!imageUrl) return;
+
+    // Check if model supports start/end frames
+    if (modelConfig.supportsStartEndFrames) {
+      // If no start image yet, or both are filled, set as start (reset)
+      if (!startImageUrl || (startImageUrl && endImageUrl)) {
+        // Reset: clear end image and set new start image
+        setStartImageUrl(imageUrl);
+        setEndImageUrl(null);
+        updateVideoState({
+          imageUrl: imageUrl,
+          endImageUrl: undefined,
+          mode: "image-to-video",
+        });
+        toast.success("Start image attached");
+      } else {
+        // Start image exists but no end image, set as end
+        setEndImageUrl(imageUrl);
+        updateVideoState({
+          endImageUrl: imageUrl,
+        });
+        toast.success("End image attached");
+      }
+    } else {
+      // Model doesn't support end frames, just replace start image
+      setStartImageUrl(imageUrl);
+      updateVideoState({
+        imageUrl: imageUrl,
+        mode: "image-to-video",
+      });
+      toast.success("Image attached");
+    }
   };
 
   return (
@@ -387,36 +771,231 @@ export default function VideoPage() {
                   </button>
                 </figure>
 
-                {/* Upload Image Section */}
-                <div
-                  className="relative w-full rounded-2xl border border-dashed border-zinc-700 select-none"
-                  style={{ height: "120px" }}
-                >
-                  <div className="pointer-events-none absolute top-2 right-2 rounded-3xl bg-white/5 px-2 py-1.5 text-xs text-gray-500 ring ring-gray-500/5 backdrop-blur-sm ring-inset">
-                    Optional
+                {/* Upload Image Section - Conditional based on model */}
+                {modelConfig.supportsStartEndFrames ? (
+                  /* Start/End Frame Inputs for models like Kling 2.5 Turbo */
+                  <div
+                    className="relative grid grid-cols-2 gap-2 select-none"
+                    style={{ height: "120px" }}
+                  >
+                    {/* Swap Button - centered between frames */}
+                    {(startImageUrl || endImageUrl) && (
+                      <button
+                        type="button"
+                        disabled={isSwapping}
+                        onClick={() => {
+                          setIsSwapping(true);
+                          // Fade out, swap, then fade in
+                          setTimeout(() => {
+                            const tempStart = startImageUrl;
+                            const tempEnd = endImageUrl;
+                            setStartImageUrl(tempEnd);
+                            setEndImageUrl(tempStart);
+                            updateVideoState({
+                              imageUrl: tempEnd || undefined,
+                              endImageUrl: tempStart || undefined,
+                              mode: tempEnd ? "image-to-video" : "text-to-video",
+                            });
+                            setTimeout(() => {
+                              setIsSwapping(false);
+                            }, 50);
+                          }, 150);
+                        }}
+                        className="absolute left-1/2 top-1/2 z-[3] flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 text-cyan-400 transition hover:bg-zinc-800 disabled:opacity-50"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path fillRule="evenodd" clipRule="evenodd" d="M7.35363 3.85355C7.54889 3.65829 7.54889 3.34171 7.35363 3.14645C7.15837 2.95118 6.84178 2.95118 6.64652 3.14645L3.64652 6.14645L3.29297 6.5L3.64652 6.85355L6.64652 9.85355C6.84178 10.0488 7.15837 10.0488 7.35363 9.85355C7.54889 9.65829 7.54889 9.34171 7.35363 9.14645L5.20718 7H16.0001C17.3808 7 18.5001 8.11929 18.5001 9.5C18.5001 9.77614 18.7239 10 19.0001 10C19.2762 10 19.5001 9.77614 19.5001 9.5C19.5001 7.567 17.9331 6 16.0001 6H5.20718L7.35363 3.85355ZM16.6465 20.1464C16.4513 20.3417 16.4513 20.6583 16.6465 20.8536C16.8418 21.0488 17.1584 21.0488 17.3536 20.8536L20.3536 17.8536L20.7072 17.5L20.3536 17.1464L17.3536 14.1464C17.1584 13.9512 16.8418 13.9512 16.6465 14.1464C16.4513 14.3417 16.4513 14.6583 16.6465 14.8536L18.793 17L8.00007 17C6.61936 17 5.50007 15.8807 5.50007 14.5C5.50007 14.2239 5.27622 14 5.00007 14C4.72393 14 4.50007 14.2239 4.50007 14.5C4.50007 16.433 6.06708 18 8.00007 18L18.793 18L16.6465 20.1464Z" />
+                        </svg>
+                      </button>
+                    )}
+                    {/* Start Frame */}
+                    <div
+                      className="group relative size-full rounded-lg"
+                      style={{ height: "120px" }}
+                    >
+                      <label className="size-full relative rounded-lg overflow-hidden cursor-pointer block">
+                        <input
+                          ref={startImageInputRef}
+                          accept="image/jpeg, image/jpg, image/png, image/webp"
+                          className="sr-only"
+                          type="file"
+                          onChange={(e) => handleImageUpload(e, "start")}
+                        />
+                        {startImageUrl ? (
+                          <img
+                            src={startImageUrl}
+                            alt="Start frame"
+                            className={`object-contain transition-opacity duration-150 ${isSwapping ? "opacity-0" : "opacity-100"}`}
+                            style={{
+                              position: "absolute",
+                              height: "100%",
+                              width: "100%",
+                              inset: 0,
+                            }}
+                          />
+                        ) : (
+                          <div className="flex size-full flex-col items-center justify-center rounded-lg border border-dashed border-zinc-700 hover:border-zinc-500 transition-colors">
+                            <div className="flex size-8 items-center justify-center rounded-lg bg-zinc-800 p-1.5">
+                              <ImageUploadIcon />
+                            </div>
+                            <p className="mt-1.5 text-center text-[10px] text-white/60">
+                              Start frame
+                            </p>
+                          </div>
+                        )}
+                      </label>
+                      {startImageUrl && (
+                        <div className="absolute -top-2.5 -right-2.5 z-[4]">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              clearImage("start");
+                            }}
+                            className="flex size-5 items-center justify-center rounded-md bg-zinc-800 border border-zinc-700 text-white/80 transition hover:bg-zinc-700 hover:text-white"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" clipRule="evenodd" d="M3.81344 3.81246C4.0087 3.6172 4.32528 3.6172 4.52055 3.81246L10.0003 9.29224L15.4801 3.81246C15.6754 3.6172 15.992 3.6172 16.1872 3.81246C16.3825 4.00772 16.3825 4.32431 16.1872 4.51957L10.7074 9.99935L16.1872 15.4791C16.3825 15.6744 16.3825 15.991 16.1872 16.1862C15.992 16.3815 15.6754 16.3815 15.4801 16.1862L10.0003 10.7065L4.52055 16.1862C4.32528 16.3815 4.0087 16.3815 3.81344 16.1862C3.61818 15.991 3.61818 15.6744 3.81344 15.4791L9.29322 9.99935L3.81344 4.51957C3.61818 4.32431 3.61818 4.00772 3.81344 3.81246Z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                      {!startImageUrl && (
+                        <div className="pointer-events-none absolute top-1.5 right-1.5 rounded-2xl bg-white/10 px-1.5 py-0.5 text-[9px] font-medium text-white/80 backdrop-blur-sm">
+                          Required
+                        </div>
+                      )}
+                    </div>
+
+                    {/* End Frame */}
+                    <div
+                      className="group relative size-full rounded-lg"
+                      style={{ height: "120px" }}
+                    >
+                      <label className="size-full relative rounded-lg overflow-hidden cursor-pointer block">
+                        <input
+                          ref={endImageInputRef}
+                          accept="image/jpeg, image/jpg, image/png, image/webp"
+                          className="sr-only"
+                          type="file"
+                          onChange={(e) => handleImageUpload(e, "end")}
+                        />
+                        {endImageUrl ? (
+                          <img
+                            src={endImageUrl}
+                            alt="End frame"
+                            className={`object-contain transition-opacity duration-150 ${isSwapping ? "opacity-0" : "opacity-100"}`}
+                            style={{
+                              position: "absolute",
+                              height: "100%",
+                              width: "100%",
+                              inset: 0,
+                            }}
+                          />
+                        ) : (
+                          <div className="flex size-full flex-col items-center justify-center rounded-lg border border-dashed border-zinc-700 hover:border-zinc-500 transition-colors">
+                            <div className="flex size-8 items-center justify-center rounded-lg bg-zinc-800 p-1.5">
+                              <ImageUploadIcon />
+                            </div>
+                            <p className="mt-1.5 text-center text-[10px] text-white/60">
+                              End frame
+                            </p>
+                          </div>
+                        )}
+                      </label>
+                      {endImageUrl && (
+                        <div className="absolute -top-2.5 -right-2.5 z-[4]">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              clearImage("end");
+                            }}
+                            className="flex size-5 items-center justify-center rounded-md bg-zinc-800 border border-zinc-700 text-white/80 transition hover:bg-zinc-700 hover:text-white"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" clipRule="evenodd" d="M3.81344 3.81246C4.0087 3.6172 4.32528 3.6172 4.52055 3.81246L10.0003 9.29224L15.4801 3.81246C15.6754 3.6172 15.992 3.6172 16.1872 3.81246C16.3825 4.00772 16.3825 4.32431 16.1872 4.51957L10.7074 9.99935L16.1872 15.4791C16.3825 15.6744 16.3825 15.991 16.1872 16.1862C15.992 16.3815 15.6754 16.3815 15.4801 16.1862L10.0003 10.7065L4.52055 16.1862C4.32528 16.3815 4.0087 16.3815 3.81344 16.1862C3.61818 15.991 3.61818 15.6744 3.81344 15.4791L9.29322 9.99935L3.81344 4.51957C3.61818 4.32431 3.61818 4.00772 3.81344 3.81246Z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                      {!endImageUrl && (
+                        <div className="pointer-events-none absolute top-1.5 right-1.5 rounded-2xl bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-gray-500 backdrop-blur-sm">
+                          Optional
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <label className="flex size-full cursor-pointer flex-col items-center justify-center">
-                    <input
-                      accept="image/jpeg, image/jpg, image/png, image/webp"
-                      className="sr-only"
-                      type="file"
-                    />
-                    <div className="flex size-9 items-center justify-center rounded-lg bg-zinc-800 p-1.5 shadow-[0_-1.872px_0_0_rgba(20,1,8,0.30)_inset,0_3.744px_3.744px_0_rgba(0,0,0,0.25)]">
-                      <ImageUploadIcon />
-                    </div>
-                    <div className="mt-2 text-center text-xs text-white/60">
-                      <p className="mb-0.5">
-                        Upload image or{" "}
-                        <span className="px-1 font-semibold text-white">
-                          generate it
-                        </span>
-                      </p>
-                      <p className="text-white/50">
-                        PNG, JPG or Paste from clipboard
-                      </p>
-                    </div>
-                  </label>
-                </div>
+                ) : (
+                  /* Single Image Upload for other models */
+                  <div
+                    className="group relative size-full rounded-lg select-none"
+                    style={{ height: "120px" }}
+                  >
+                    <label className="size-full relative rounded-lg overflow-hidden cursor-pointer block">
+                      <input
+                        accept="image/jpeg, image/jpg, image/png, image/webp"
+                        className="sr-only"
+                        type="file"
+                        onChange={(e) => handleImageUpload(e, "single")}
+                      />
+                      {videoState.imageUrl ? (
+                        <img
+                          src={videoState.imageUrl}
+                          alt="Uploaded image"
+                          className="object-contain"
+                          style={{
+                            position: "absolute",
+                            height: "100%",
+                            width: "100%",
+                            inset: 0,
+                          }}
+                        />
+                      ) : (
+                        <div className="flex size-full flex-col items-center justify-center rounded-lg border border-dashed border-zinc-700 hover:border-zinc-500 transition-colors">
+                          <div className="flex size-9 items-center justify-center rounded-lg bg-zinc-800 p-1.5 shadow-[0_-1.872px_0_0_rgba(20,1,8,0.30)_inset,0_3.744px_3.744px_0_rgba(0,0,0,0.25)]">
+                            <ImageUploadIcon />
+                          </div>
+                          <div className="mt-2 text-center text-xs text-white/60">
+                            <p className="mb-0.5">
+                              Upload image or{" "}
+                              <span className="px-1 font-semibold text-white">
+                                generate it
+                              </span>
+                            </p>
+                            <p className="text-white/50">
+                              PNG, JPG or Paste from clipboard
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </label>
+                    {videoState.imageUrl && (
+                      <div className="absolute -top-2.5 -right-2.5 z-[4]">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            clearImage("single");
+                          }}
+                          className="flex size-5 items-center justify-center rounded-md bg-zinc-800 border border-zinc-700 text-white/80 transition hover:bg-zinc-700 hover:text-white"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" clipRule="evenodd" d="M3.81344 3.81246C4.0087 3.6172 4.32528 3.6172 4.52055 3.81246L10.0003 9.29224L15.4801 3.81246C15.6754 3.6172 15.992 3.6172 16.1872 3.81246C16.3825 4.00772 16.3825 4.32431 16.1872 4.51957L10.7074 9.99935L16.1872 15.4791C16.3825 15.6744 16.3825 15.991 16.1872 16.1862C15.992 16.3815 15.6754 16.3815 15.4801 16.1862L10.0003 10.7065L4.52055 16.1862C4.32528 16.3815 4.0087 16.3815 3.81344 16.1862C3.61818 15.991 3.61818 15.6744 3.81344 15.4791L9.29322 9.99935L3.81344 4.51957C3.61818 4.32431 3.61818 4.00772 3.81344 3.81246Z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    {!videoState.imageUrl && (
+                      <div className="pointer-events-none absolute top-2 right-2 rounded-3xl bg-white/5 px-2 py-1.5 text-xs text-gray-500 ring ring-gray-500/5 backdrop-blur-sm ring-inset">
+                        Optional
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Prompt Section */}
                 <fieldset className="rounded-xl bg-zinc-800/50">
@@ -516,18 +1095,13 @@ export default function VideoPage() {
                     </div>
                     <ChevronDownIcon />
                   </button>
-                  <Dropdown
+                  <NestedDropdown
                     isOpen={showModelDropdown}
                     onClose={() => setShowModelDropdown(false)}
                     value={videoState.model}
                     onChange={(id) => handleModelChange(id as VideoModelId)}
                     triggerRef={modelTriggerRef}
-                    options={Object.values(VIDEO_MODELS).map((model) => ({
-                      id: model.id,
-                      label: model.shortName,
-                      description: model.description,
-                      icon: MODEL_ICONS[model.id],
-                    }))}
+                    groups={MODEL_GROUPS}
                   />
                 </fieldset>
 
@@ -1022,12 +1596,25 @@ export default function VideoPage() {
           {/* Generate/Export Button - Fixed at bottom */}
           <div className="px-4 pt-3 pb-4">
             {activeTab === "create" ? (
-              <button className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 text-sm font-semibold text-black shadow-[inset_0px_-3px_rgba(0,0,0,0.25)] transition hover:bg-cyan-300">
-                Generate
-                <div className="flex items-center gap-0.5">
-                  <SparkleIcon />
-                  {credits}
-                </div>
+              <button
+                onClick={handleGenerate}
+                disabled={pendingCount > 0}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 text-sm font-semibold text-black shadow-[inset_0px_-3px_rgba(0,0,0,0.25)] transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {pendingCount > 0 ? (
+                  <>
+                    <div className="size-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    Generate
+                    <div className="flex items-center gap-0.5">
+                      <SparkleIcon />
+                      {credits}
+                    </div>
+                  </>
+                )}
               </button>
             ) : (
               <button className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 text-sm font-semibold text-black shadow-[inset_0px_-3px_rgba(0,0,0,0.25)] transition hover:bg-cyan-300">
@@ -1058,21 +1645,101 @@ export default function VideoPage() {
             />
           ) : (
             <>
-              {/* Top Tabs */}
-              <div className="z-10 w-fit">
-                <nav className="flex gap-1 rounded-xl border border-zinc-800 bg-zinc-900 p-1">
-                  <button className="relative flex min-w-[120px] items-center justify-center gap-2 rounded-lg border border-zinc-800 px-4 py-2 text-sm font-medium text-white transition-colors">
+              {/* Shared Tabs with sliding indicator */}
+              <div className="z-10 mb-4 w-fit">
+                <nav className="relative flex gap-1 rounded-xl border border-zinc-800 bg-zinc-900 p-1">
+                  {/* Sliding indicator */}
+                  <div
+                    className={`absolute top-1 bottom-1 left-1 w-[120px] rounded-lg bg-white/10 border border-zinc-700 transition-all duration-200 ease-out ${
+                      showResults || pendingCount > 0 ? 'translate-x-0' : 'translate-x-[124px]'
+                    }`}
+                  />
+                  <button
+                    onClick={() => setShowResults(true)}
+                    className={`relative z-10 flex w-[120px] items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+                      showResults || pendingCount > 0 ? 'text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
                     <FolderIcon />
                     History
-                    <span className="absolute inset-0 rounded-lg bg-white/10" />
                   </button>
-                  <button className="relative flex min-w-[120px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-gray-400 transition-colors hover:text-white">
+                  <button
+                    onClick={() => setShowResults(false)}
+                    className={`relative z-10 flex w-[120px] items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+                      showResults || pendingCount > 0 ? 'text-gray-400 hover:text-white' : 'text-white'
+                    }`}
+                  >
                     <BookIcon />
                     How it works
                   </button>
                 </nav>
               </div>
 
+              {/* Content area */}
+              {showResults || pendingCount > 0 ? (
+              /* Video Results View */
+              <div className="animate-in fade-in duration-200">
+              {/* Video Results Container */}
+              <div className="hide-scrollbar flex-1 overflow-y-auto">
+                <ul className="space-y-0">
+                  {/* Skeleton loaders while loading from database */}
+                  {isLoadingVideos && (
+                    <VideoGridSkeleton count={3} />
+                  )}
+
+                  {/* Skeleton loaders while generating new videos */}
+                  {!isLoadingVideos && pendingCount > 0 && (
+                    <VideoGridSkeleton count={pendingCount} />
+                  )}
+
+                  {/* Generated videos */}
+                  {!isLoadingVideos && generatedVideos.map((video) => (
+                      <VideoResultCard
+                        key={video.id}
+                        video={video}
+                        onRerun={() => handleRerunVideo(video)}
+                        onDelete={() => handleDeleteVideo(video.id)}
+                        onDownload={() =>
+                          handleDownloadVideo(video.url, video.prompt)
+                        }
+                        onCopy={() => {
+                          navigator.clipboard.writeText(video.prompt);
+                          toast.success("Prompt copied to clipboard");
+                        }}
+                        onAttachImages={handleAttachImages}
+                      />
+                    ))}
+
+                  {/* Empty state if no videos and not loading */}
+                  {!isLoadingVideos && generatedVideos.length === 0 && pendingCount === 0 && (
+                    <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/50">
+                      <div className="text-zinc-600">
+                        <svg
+                          width="48"
+                          height="48"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1"
+                        >
+                          <rect x="2" y="4" width="20" height="16" rx="2" />
+                          <path d="M10 9l5 3-5 3V9z" />
+                        </svg>
+                      </div>
+                      <p className="mt-3 text-sm text-zinc-500">
+                        No videos yet
+                      </p>
+                      <p className="text-xs text-zinc-600">
+                        Generate your first video to get started
+                      </p>
+                    </div>
+                  )}
+                </ul>
+              </div>
+              </div>
+              ) : (
+              /* How it works View */
+              <div className="animate-in fade-in duration-200">
               {/* Hero Section */}
               <section className="flex w-full flex-col self-start rounded-[1.25rem] border border-zinc-800 bg-zinc-900 px-8 py-24">
                 <header className="mb-8">
@@ -1092,21 +1759,11 @@ export default function VideoPage() {
                       className="relative mb-4 w-full overflow-hidden rounded-2xl"
                       style={{ aspectRatio: "1.31646 / 1" }}
                     >
-                      <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-zinc-700 bg-zinc-800/30">
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                          <div className="text-gray-600">
-                            <ImagePlaceholderIcon />
-                          </div>
-                          <p className="font-medium text-white">UPLOAD IMAGE</p>
-                          <p className="text-xs text-gray-500">
-                            Paste from Clipboard
-                          </p>
-                        </div>
-                        {/* Decorative overlay image */}
-                        <div className="absolute bottom-0 left-0 h-1/2 w-2/3 overflow-hidden rounded-tr-xl">
-                          <div className="h-full w-full bg-gradient-to-t from-purple-900/50 to-transparent" />
-                        </div>
-                      </div>
+                      <img
+                        src="/video-page/step-1-v2.webp"
+                        alt="Step 1: Add an image"
+                        className="h-full w-full object-cover"
+                      />
                     </figure>
                     <h2 className="font-heading mb-2 text-sm font-bold text-white uppercase">
                       Add Image
@@ -1119,27 +1776,17 @@ export default function VideoPage() {
                   {/* Card 2 - Choose Preset */}
                   <article>
                     <figure
-                      className="relative mb-4 w-full overflow-hidden rounded-2xl bg-zinc-800/30"
+                      className="relative mb-4 w-full overflow-hidden rounded-2xl"
                       style={{ aspectRatio: "1.31646 / 1" }}
                     >
-                      <div className="flex h-full items-center justify-center gap-2 p-4">
-                        {/* Small cards */}
-                        <div className="h-32 w-20 rounded-lg bg-zinc-700" />
-                        <div className="h-40 w-28 rounded-lg border-2 border-cyan-400 bg-zinc-700" />
-                        <div className="flex flex-col gap-2">
-                          <div className="h-16 w-20 rounded-lg bg-zinc-700" />
-                          <div className="h-16 w-20 rounded-lg bg-zinc-700">
-                            <div className="flex h-full flex-col items-center justify-center">
-                              <p className="text-[8px] text-gray-400">
-                                MINIMALISM
-                              </p>
-                              <p className="text-[8px] text-gray-400">
-                                CORPORATE
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <video
+                        src="/video-page/step-2.mp4"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="h-full w-full object-cover"
+                      />
                     </figure>
                     <h2 className="font-heading mb-2 text-sm font-bold text-white uppercase">
                       Choose Preset
@@ -1152,10 +1799,17 @@ export default function VideoPage() {
                   {/* Card 3 - Get Video */}
                   <article>
                     <figure
-                      className="relative mb-4 w-full overflow-hidden rounded-2xl border-2 border-white"
+                      className="relative mb-4 w-full overflow-hidden rounded-2xl"
                       style={{ aspectRatio: "1.31646 / 1" }}
                     >
-                      <div className="h-full w-full bg-gradient-to-br from-teal-900/50 via-transparent to-amber-900/30" />
+                      <video
+                        src="/video-page/step-3.mp4"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="h-full w-full object-cover"
+                      />
                     </figure>
                     <h2 className="font-heading mb-2 text-sm font-bold text-white uppercase">
                       Get Video
@@ -1166,6 +1820,8 @@ export default function VideoPage() {
                   </article>
                 </div>
               </section>
+              </div>
+              )}
             </>
           )}
         </main>
