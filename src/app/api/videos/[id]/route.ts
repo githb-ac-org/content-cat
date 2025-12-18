@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-helpers";
 
 // DELETE /api/videos/[id] - Delete a video
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { user, error } = await requireAuth(request);
+  if (error) return error;
+
   try {
     const { id } = await params;
 
-    await prisma.generatedVideo.delete({
-      where: { id },
+    // Only delete if the video belongs to the user
+    await prisma.generatedVideo.deleteMany({
+      where: { id, userId: user!.id },
     });
 
     return NextResponse.json({ success: true });
@@ -28,11 +33,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { user, error } = await requireAuth(request);
+  if (error) return error;
+
   try {
     const { id } = await params;
 
-    const video = await prisma.generatedVideo.findUnique({
-      where: { id },
+    const video = await prisma.generatedVideo.findFirst({
+      where: { id, userId: user!.id },
     });
 
     if (!video) {

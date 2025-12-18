@@ -1,14 +1,60 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-helpers";
 
-// GET /api/videos - List all videos
-export async function GET() {
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
+
+// GET /api/videos - List videos with pagination
+// Excludes large base64 fields by default for performance
+export async function GET(request: Request) {
+  const { user, error } = await requireAuth(request);
+  if (error) return error;
+
   try {
+    const { searchParams } = new URL(request.url);
+    const cursor = searchParams.get("cursor");
+    const limitParam = searchParams.get("limit");
+    const includeFrames = searchParams.get("includeFrames") === "true";
+    const limit = Math.min(
+      parseInt(limitParam || String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE,
+      MAX_PAGE_SIZE
+    );
+
     const videos = await prisma.generatedVideo.findMany({
+      where: { userId: user!.id },
+      take: limit + 1,
+      ...(cursor && {
+        cursor: { id: cursor },
+        skip: 1,
+      }),
       orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        url: true,
+        thumbnailUrl: true,
+        prompt: true,
+        model: true,
+        duration: true,
+        aspectRatio: true,
+        resolution: true,
+        audioEnabled: true,
+        createdAt: true,
+        // Only include large base64 fields if explicitly requested
+        startImageUrl: includeFrames,
+        endImageUrl: includeFrames,
+      },
     });
 
-    return NextResponse.json(videos);
+    const hasMore = videos.length > limit;
+    const data = hasMore ? videos.slice(0, -1) : videos;
+    const nextCursor = hasMore ? data[data.length - 1]?.id : null;
+
+    return NextResponse.json({
+      data,
+      nextCursor,
+      hasMore,
+    });
   } catch (error) {
     console.error("Failed to fetch videos:", error);
     return NextResponse.json(
@@ -20,6 +66,9 @@ export async function GET() {
 
 // POST /api/videos - Create a new video record
 export async function POST(request: Request) {
+  const { user, error } = await requireAuth(request);
+  if (error) return error;
+
   try {
     const body = await request.json();
     const {
@@ -44,6 +93,7 @@ export async function POST(request: Request) {
 
     const video = await prisma.generatedVideo.create({
       data: {
+        userId: user!.id,
         url,
         thumbnailUrl,
         prompt,

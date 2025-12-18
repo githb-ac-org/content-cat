@@ -66,6 +66,7 @@ export default function FeaturedCards() {
                 src={card.image}
                 alt={card.title}
                 fill
+                sizes="(max-width: 768px) 38vw, 300px"
                 className="object-cover"
               />
             </div>

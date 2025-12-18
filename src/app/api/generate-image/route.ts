@@ -7,8 +7,36 @@ import {
   type NanoBananaProOutputFormat,
 } from "@/lib/fal";
 import { getApiKey } from "@/lib/services/apiKeyService";
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  createRateLimitHeaders,
+  RATE_LIMITS,
+} from "@/lib/rate-limit";
+import { withTimeout, TIMEOUTS, TimeoutError } from "@/lib/utils/timeout";
+import { requireAuth } from "@/lib/auth-helpers";
 
 export async function POST(request: NextRequest) {
+  const { user, error: authError } = await requireAuth(request);
+  if (authError) return authError;
+
+  // Rate limiting for expensive generation operations
+  const clientId = getClientIdentifier(request);
+  const rateLimitResult = checkRateLimit(clientId, RATE_LIMITS.generation);
+
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      {
+        error: "Too many requests. Please wait before generating more images.",
+        retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
+      },
+      {
+        status: 429,
+        headers: createRateLimitHeaders(rateLimitResult),
+      }
+    );
+  }
+
   try {
     const body = await request.json();
     const {
@@ -45,7 +73,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const apiKey = await getApiKey();
+    const apiKey = await getApiKey(user!.id);
     if (!apiKey) {
       return NextResponse.json(
         {
@@ -63,16 +91,20 @@ export async function POST(request: NextRequest) {
       imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0;
 
     if (hasImages) {
-      // Image editing mode with reference images
-      const result = await client.editImage({
-        prompt,
-        image_urls: imageUrls,
-        aspect_ratio: (aspectRatio || "auto") as NanoBananaProAspectRatio,
-        resolution: (resolution || "1K") as NanoBananaProResolution,
-        output_format: (outputFormat || "png") as NanoBananaProOutputFormat,
-        num_images: numImages || 1,
-        enable_safety_checker: enableSafetyChecker ?? true,
-      });
+      // Image editing mode with reference images (with timeout)
+      const result = await withTimeout(
+        client.editImage({
+          prompt,
+          image_urls: imageUrls,
+          aspect_ratio: (aspectRatio || "auto") as NanoBananaProAspectRatio,
+          resolution: (resolution || "1K") as NanoBananaProResolution,
+          output_format: (outputFormat || "png") as NanoBananaProOutputFormat,
+          num_images: numImages || 1,
+          enable_safety_checker: enableSafetyChecker ?? true,
+        }),
+        TIMEOUTS.IMAGE_GENERATION,
+        "Image generation timed out. Please try again."
+      );
 
       return NextResponse.json({
         success: true,
@@ -82,16 +114,20 @@ export async function POST(request: NextRequest) {
         seed: result.seed,
       });
     } else {
-      // Text-to-image mode
-      const result = await client.generateImage({
-        prompt,
-        aspect_ratio: (aspectRatio || "1:1") as NanoBananaProAspectRatio,
-        resolution: (resolution || "1K") as NanoBananaProResolution,
-        output_format: (outputFormat || "png") as NanoBananaProOutputFormat,
-        num_images: numImages || 1,
-        enable_web_search: enableWebSearch ?? false,
-        enable_safety_checker: enableSafetyChecker ?? true,
-      });
+      // Text-to-image mode (with timeout)
+      const result = await withTimeout(
+        client.generateImage({
+          prompt,
+          aspect_ratio: (aspectRatio || "1:1") as NanoBananaProAspectRatio,
+          resolution: (resolution || "1K") as NanoBananaProResolution,
+          output_format: (outputFormat || "png") as NanoBananaProOutputFormat,
+          num_images: numImages || 1,
+          enable_web_search: enableWebSearch ?? false,
+          enable_safety_checker: enableSafetyChecker ?? true,
+        }),
+        TIMEOUTS.IMAGE_GENERATION,
+        "Image generation timed out. Please try again."
+      );
 
       return NextResponse.json({
         success: true,
@@ -103,6 +139,15 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error("Image generation error:", error);
+
+    // Handle timeout errors specifically
+    if (error instanceof TimeoutError) {
+      return NextResponse.json(
+        { error: error.message, code: "TASK_TIMEOUT" },
+        { status: 504 }
+      );
+    }
+
     const errorMsg =
       error instanceof Error ? error.message : "Failed to generate image";
     const parsed = parseFalError(errorMsg);

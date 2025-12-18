@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,7 +33,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        {children}
+        <Providers>{children}</Providers>
         <Toaster
           position="top-center"
           toastOptions={{

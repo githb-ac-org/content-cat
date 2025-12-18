@@ -131,7 +131,14 @@ export function useVideoGeneration(options: UseVideoGenerationOptions = {}) {
       }
     };
 
-    generateVideo();
+    // Start generation with proper error handling
+    generateVideo().catch((error) => {
+      // Catch any unhandled errors to prevent crashes
+      console.error("Unhandled error in video generation:", error);
+      toast.error("An unexpected error occurred. Please try again.");
+      setPendingCount((prev) => Math.max(0, prev - 1));
+    });
+
     return true;
   }, [videoState, onVideoGenerated]);
 

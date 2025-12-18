@@ -1,14 +1,15 @@
 import { prisma } from "@/lib/prisma";
 
 /**
- * Get API key from database for a given service
+ * Get API key from database for a given user and service
+ * @param userId - The user ID
  * @param service - The service name (default: "fal")
  * @returns The API key if found and active, null otherwise
  */
-export async function getApiKey(service: string = "fal"): Promise<string | null> {
+export async function getApiKey(userId: string, service: string = "fal"): Promise<string | null> {
   try {
     const storedKey = await prisma.apiKey.findUnique({
-      where: { service },
+      where: { userId_service: { userId, service } },
     });
     if (storedKey?.isActive && storedKey.key) {
       return storedKey.key;
@@ -20,11 +21,12 @@ export async function getApiKey(service: string = "fal"): Promise<string | null>
 }
 
 /**
- * Check if an API key exists and is active for a given service
+ * Check if an API key exists and is active for a given user and service
+ * @param userId - The user ID
  * @param service - The service name (default: "fal")
  * @returns True if key exists and is active
  */
-export async function hasActiveApiKey(service: string = "fal"): Promise<boolean> {
-  const key = await getApiKey(service);
+export async function hasActiveApiKey(userId: string, service: string = "fal"): Promise<boolean> {
+  const key = await getApiKey(userId, service);
   return key !== null;
 }

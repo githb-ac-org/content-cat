@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-helpers";
 
 export type EntityType = "character" | "product";
 
@@ -7,14 +8,23 @@ function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// GET handler - List all entities
+// GET handler - List all entities for the current user
 export function createListHandler(entityType: EntityType) {
-  return async function GET() {
+  return async function GET(request: Request) {
+    const { user, error } = await requireAuth(request);
+    if (error) return error;
+
     try {
       const entities =
         entityType === "character"
-          ? await prisma.character.findMany({ orderBy: { createdAt: "desc" } })
-          : await prisma.product.findMany({ orderBy: { createdAt: "desc" } });
+          ? await prisma.character.findMany({
+              where: { userId: user!.id },
+              orderBy: { createdAt: "desc" },
+            })
+          : await prisma.product.findMany({
+              where: { userId: user!.id },
+              orderBy: { createdAt: "desc" },
+            });
 
       return NextResponse.json(entities);
     } catch (error) {
@@ -27,9 +37,12 @@ export function createListHandler(entityType: EntityType) {
   };
 }
 
-// POST handler - Create a new entity
+// POST handler - Create a new entity for the current user
 export function createCreateHandler(entityType: EntityType) {
   return async function POST(request: Request) {
+    const { user, error } = await requireAuth(request);
+    if (error) return error;
+
     try {
       const body = await request.json();
       const { name, referenceImages } = body;
@@ -42,6 +55,7 @@ export function createCreateHandler(entityType: EntityType) {
       }
 
       const data = {
+        userId: user!.id,
         name,
         referenceImages,
         thumbnailUrl: referenceImages[0],
@@ -63,18 +77,21 @@ export function createCreateHandler(entityType: EntityType) {
   };
 }
 
-// GET by ID handler
+// GET by ID handler - Only return if belongs to current user
 export function createGetByIdHandler(entityType: EntityType) {
   return async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
   ) {
+    const { user, error } = await requireAuth(request);
+    if (error) return error;
+
     try {
       const { id } = await params;
       const entity =
         entityType === "character"
-          ? await prisma.character.findUnique({ where: { id } })
-          : await prisma.product.findUnique({ where: { id } });
+          ? await prisma.character.findFirst({ where: { id, userId: user!.id } })
+          : await prisma.product.findFirst({ where: { id, userId: user!.id } });
 
       if (!entity) {
         return NextResponse.json(
@@ -94,18 +111,21 @@ export function createGetByIdHandler(entityType: EntityType) {
   };
 }
 
-// DELETE handler
+// DELETE handler - Only delete if belongs to current user
 export function createDeleteHandler(entityType: EntityType) {
   return async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
   ) {
+    const { user, error } = await requireAuth(request);
+    if (error) return error;
+
     try {
       const { id } = await params;
       if (entityType === "character") {
-        await prisma.character.delete({ where: { id } });
+        await prisma.character.deleteMany({ where: { id, userId: user!.id } });
       } else {
-        await prisma.product.delete({ where: { id } });
+        await prisma.product.deleteMany({ where: { id, userId: user!.id } });
       }
 
       return NextResponse.json({ success: true });
@@ -119,12 +139,15 @@ export function createDeleteHandler(entityType: EntityType) {
   };
 }
 
-// PATCH handler - Update entity
+// PATCH handler - Update entity only if belongs to current user
 export function createUpdateHandler(entityType: EntityType) {
   return async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
   ) {
+    const { user, error } = await requireAuth(request);
+    if (error) return error;
+
     try {
       const { id } = await params;
       const body = await request.json();
@@ -139,6 +162,19 @@ export function createUpdateHandler(entityType: EntityType) {
       if (referenceImages) {
         updateData.referenceImages = referenceImages;
         updateData.thumbnailUrl = referenceImages[0];
+      }
+
+      // First verify the entity belongs to the user
+      const existing =
+        entityType === "character"
+          ? await prisma.character.findFirst({ where: { id, userId: user!.id } })
+          : await prisma.product.findFirst({ where: { id, userId: user!.id } });
+
+      if (!existing) {
+        return NextResponse.json(
+          { error: `${capitalizeFirst(entityType)} not found` },
+          { status: 404 }
+        );
       }
 
       const entity =

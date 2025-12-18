@@ -68,7 +68,22 @@ export default function ImagePromptForm({
   const [savedCharacters, setSavedCharacters] = useState<SavedCharacter[]>([]);
   const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const maxImages = MAX_IMAGES_PER_GENERATION;
+
+  // Auto-resize textarea
+  const autoResizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "40px";
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    }
+  }, []);
+
+  // Resize textarea when prompt changes programmatically
+  useEffect(() => {
+    autoResizeTextarea();
+  }, [prompt, autoResizeTextarea]);
 
   // Fetch saved characters and products
   useEffect(() => {
@@ -339,7 +354,7 @@ export default function ImagePromptForm({
     >
       <fieldset className="relative z-20 flex gap-3">
         {/* Left section - Prompt input and controls */}
-        <div className="min-h-0 min-w-0 flex-1 space-y-2">
+        <div className="min-h-0 min-w-0 flex-1 space-y-3">
           {/* Reference images preview */}
           {referenceImages.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
@@ -403,10 +418,14 @@ export default function ImagePromptForm({
               </button>
             )}
             <textarea
+              ref={textareaRef}
               name="prompt"
               placeholder="Describe the scene you imagine"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => {
+                setPrompt(e.target.value);
+                autoResizeTextarea();
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -415,7 +434,7 @@ export default function ImagePromptForm({
                   }
                 }
               }}
-              className="hide-scrollbar h-10 min-h-[40px] w-full resize-none rounded-none border-none bg-transparent p-0 text-[15px] text-white placeholder:text-gray-500 focus:outline-none"
+              className="hide-scrollbar min-h-[40px] max-h-[120px] w-full resize-none rounded-none border-none bg-transparent p-0 text-[15px] text-white placeholder:text-gray-500 focus:outline-none"
             />
           </div>
 

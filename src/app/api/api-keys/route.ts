@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-helpers";
 
 // GET /api/api-keys - List all API keys (masked)
-export async function GET() {
+export async function GET(request: Request) {
+  const { user, error } = await requireAuth(request);
+  if (error) return error;
+
   try {
     const apiKeys = await prisma.apiKey.findMany({
+      where: { userId: user!.id },
       orderBy: { createdAt: "desc" },
     });
 
@@ -26,6 +31,9 @@ export async function GET() {
 
 // POST /api/api-keys - Create or update an API key
 export async function POST(request: Request) {
+  const { user, error } = await requireAuth(request);
+  if (error) return error;
+
   try {
     const body = await request.json();
     const { name, key, service } = body;
@@ -37,11 +45,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Upsert - create or update if service already exists
+    // Upsert - create or update if service already exists for this user
     const apiKey = await prisma.apiKey.upsert({
-      where: { service },
+      where: { userId_service: { userId: user!.id, service } },
       update: { name, key, isActive: true },
-      create: { name, key, service, isActive: true },
+      create: { userId: user!.id, name, key, service, isActive: true },
     });
 
     return NextResponse.json(
@@ -62,6 +70,9 @@ export async function POST(request: Request) {
 
 // DELETE /api/api-keys - Delete an API key by service
 export async function DELETE(request: Request) {
+  const { user, error } = await requireAuth(request);
+  if (error) return error;
+
   try {
     const { searchParams } = new URL(request.url);
     const service = searchParams.get("service");
@@ -73,8 +84,8 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.apiKey.delete({
-      where: { service },
+    await prisma.apiKey.deleteMany({
+      where: { userId: user!.id, service },
     });
 
     return NextResponse.json({ success: true });

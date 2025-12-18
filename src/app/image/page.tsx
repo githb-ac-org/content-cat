@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import Header from "@/components/Header";
@@ -14,6 +14,28 @@ import {
 } from "@/components/image";
 
 export default function ImagePage() {
+  return (
+    <Suspense fallback={<ImagePageSkeleton />}>
+      <ImagePageContent />
+    </Suspense>
+  );
+}
+
+function ImagePageSkeleton() {
+  return (
+    <div className="flex h-screen flex-col overflow-hidden bg-[#0a0a0a]">
+      <Header />
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-zinc-600 border-t-white" />
+          <span className="text-sm text-zinc-400">Loading...</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImagePageContent() {
   const searchParams = useSearchParams();
   const initialPrompt = searchParams.get("prompt") || "";
   const initialModel = searchParams.get("model") || undefined;
@@ -32,13 +54,28 @@ export default function ImagePage() {
   );
   const [editData, setEditData] = useState<{ imageUrl: string } | null>(null);
 
-  // Fetch images from database on mount
-  const fetchImages = useCallback(async () => {
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Fetch images from database with pagination
+  const fetchImages = useCallback(async (cursor?: string) => {
     try {
-      const response = await fetch("/api/images");
+      const url = cursor
+        ? `/api/images?cursor=${cursor}&limit=50`
+        : "/api/images?limit=50";
+      const response = await fetch(url);
       if (response.ok) {
-        const images = await response.json();
-        setGeneratedImages(images);
+        const result = await response.json();
+        if (cursor) {
+          // Append to existing images
+          setGeneratedImages(prev => [...prev, ...result.data]);
+        } else {
+          // Initial load
+          setGeneratedImages(result.data);
+        }
+        setNextCursor(result.nextCursor);
+        setHasMore(result.hasMore);
       } else {
         toast.error("Failed to load images");
       }
@@ -46,8 +83,16 @@ export default function ImagePage() {
       toast.error("Failed to load images");
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   }, []);
+
+  // Load more images when scrolling
+  const loadMoreImages = useCallback(async () => {
+    if (!hasMore || isLoadingMore || !nextCursor) return;
+    setIsLoadingMore(true);
+    await fetchImages(nextCursor);
+  }, [hasMore, isLoadingMore, nextCursor, fetchImages]);
 
   useEffect(() => {
     fetchImages();
@@ -66,6 +111,7 @@ export default function ImagePage() {
   };
 
   const handleDownload = async (url: string, prompt: string) => {
+    let blobUrl: string | null = null;
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -73,16 +119,20 @@ export default function ImagePage() {
         return;
       }
       const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      blobUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = blobUrl;
       link.download = `${prompt.slice(0, 30).replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
     } catch {
       toast.error("Failed to download image");
+    } finally {
+      // Always revoke blob URL to prevent memory leaks
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
     }
   };
 
@@ -187,8 +237,14 @@ export default function ImagePage() {
       }
     };
 
-    // Start generation without awaiting (fire-and-forget)
-    generateImages();
+    // Start generation in background with proper error handling
+    generateImages().catch((error) => {
+      // Catch any unhandled errors to prevent crashes
+      console.error("Unhandled error in image generation:", error);
+      toast.error("An unexpected error occurred. Please try again.");
+      // Reset pending count on catastrophic failure
+      setPendingCount(0);
+    });
   };
 
   return (
@@ -214,28 +270,42 @@ export default function ImagePage() {
 
             {/* Generated Images Display */}
             {!isLoading && (generatedImages.length > 0 || pendingCount > 0) ? (
-              <div
-                className="grid w-full grid-cols-2 gap-1.5 md:grid-cols-4"
-                style={{ gridAutoRows: "320px" }}
-              >
-                {/* Skeleton loaders while generating */}
-                {pendingCount > 0 && <ImageGridSkeleton count={pendingCount} />}
+              <>
+                <div
+                  className="grid w-full grid-cols-2 gap-1.5 md:grid-cols-4"
+                  style={{ gridAutoRows: "320px" }}
+                >
+                  {/* Skeleton loaders while generating */}
+                  {pendingCount > 0 && <ImageGridSkeleton count={pendingCount} />}
 
-                {/* Generated images */}
-                {generatedImages.map((img, index) => (
-                  <ImageCard
-                    key={img.id}
-                    image={img}
-                    isSelected={selectedImages.has(img.id)}
-                    isPriority={index < 4}
-                    onSelect={() => toggleSelectImage(img.id)}
-                    onClick={() => setSelectedImage(img)}
-                    onDownload={() => handleDownload(img.url, img.prompt)}
-                    onDelete={() => handleDelete(img.id)}
-                    onEdit={() => setEditData({ imageUrl: img.url })}
-                  />
-                ))}
-              </div>
+                  {/* Generated images */}
+                  {generatedImages.map((img, index) => (
+                    <ImageCard
+                      key={img.id}
+                      image={img}
+                      isSelected={selectedImages.has(img.id)}
+                      isPriority={index < 4}
+                      onSelect={() => toggleSelectImage(img.id)}
+                      onClick={() => setSelectedImage(img)}
+                      onDownload={() => handleDownload(img.url, img.prompt)}
+                      onDelete={() => handleDelete(img.id)}
+                      onEdit={() => setEditData({ imageUrl: img.url })}
+                    />
+                  ))}
+                </div>
+                {/* Load more trigger */}
+                {hasMore && (
+                  <div className="flex justify-center py-8">
+                    <button
+                      onClick={loadMoreImages}
+                      disabled={isLoadingMore}
+                      className="rounded-lg bg-zinc-800 px-6 py-2 text-sm text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
+                    >
+                      {isLoadingMore ? "Loading..." : "Load More"}
+                    </button>
+                  </div>
+                )}
+              </>
             ) : !isLoading ? (
               <ImageEmptyState />
             ) : null}

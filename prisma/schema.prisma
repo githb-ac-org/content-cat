@@ -9,51 +9,69 @@ datasource db {
 
 model GeneratedImage {
   id          String   @id @default(uuid())
+  userId      String   @map("user_id")
   url         String
   prompt      String
   aspectRatio String   @map("aspect_ratio")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@map("generated_images")
 }
 
 model ApiKey {
   id        String   @id @default(uuid())
+  userId    String   @map("user_id")
   name      String
   key       String
-  service   String   @unique
+  service   String
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, service])
+  @@index([userId])
   @@map("api_keys")
 }
 
 model Character {
   id              String   @id @default(uuid())
+  userId          String   @map("user_id")
   name            String
   referenceImages String[] @map("reference_images")
   thumbnailUrl    String?  @map("thumbnail_url")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@map("characters")
 }
 
 model Product {
   id              String   @id @default(uuid())
+  userId          String   @map("user_id")
   name            String
   referenceImages String[] @map("reference_images")
   thumbnailUrl    String?  @map("thumbnail_url")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@map("products")
 }
 
 model GeneratedVideo {
   id            String   @id @default(uuid())
+  userId        String   @map("user_id")
   url           String
   thumbnailUrl  String?  @map("thumbnail_url")
   prompt        String
@@ -67,5 +85,42 @@ model GeneratedVideo {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@map("generated_videos")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String?
+  role         String    @default("user") // "admin" or "user"
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  sessions        Session[]
+  generatedImages GeneratedImage[]
+  apiKeys         ApiKey[]
+  characters      Character[]
+  products        Product[]
+  generatedVideos GeneratedVideo[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("sessions")
 }

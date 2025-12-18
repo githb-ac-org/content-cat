@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,7 +8,7 @@ services:
       POSTGRES_PASSWORD: contentcat123
       POSTGRES_DB: contentcat
     ports:
-      - "5432:5432"
+      - "5499:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

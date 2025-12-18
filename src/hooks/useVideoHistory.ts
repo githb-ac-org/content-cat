@@ -8,24 +8,46 @@ export function useVideoHistory() {
   const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
   const [isLoadingVideos, setIsLoadingVideos] = useState(true);
   const [showResults, setShowResults] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // Fetch videos from database
-  const fetchVideos = useCallback(async () => {
+  // Fetch videos from database with pagination
+  const fetchVideos = useCallback(async (cursor?: string) => {
     try {
-      const response = await fetch("/api/videos");
+      const url = cursor
+        ? `/api/videos?cursor=${cursor}&limit=20`
+        : "/api/videos?limit=20";
+      const response = await fetch(url);
       if (response.ok) {
-        const videos = await response.json();
-        setGeneratedVideos(videos);
-        if (videos.length > 0) {
-          setShowResults(true);
+        const result = await response.json();
+        if (cursor) {
+          // Append to existing videos
+          setGeneratedVideos(prev => [...prev, ...result.data]);
+        } else {
+          // Initial load
+          setGeneratedVideos(result.data);
+          if (result.data.length > 0) {
+            setShowResults(true);
+          }
         }
+        setNextCursor(result.nextCursor);
+        setHasMore(result.hasMore);
       }
     } catch {
       // Silently fail - videos will show empty state
     } finally {
       setIsLoadingVideos(false);
+      setIsLoadingMore(false);
     }
   }, []);
+
+  // Load more videos
+  const loadMoreVideos = useCallback(async () => {
+    if (!hasMore || isLoadingMore || !nextCursor) return;
+    setIsLoadingMore(true);
+    await fetchVideos(nextCursor);
+  }, [hasMore, isLoadingMore, nextCursor, fetchVideos]);
 
   // Fetch videos on mount
   useEffect(() => {
@@ -60,6 +82,7 @@ export function useVideoHistory() {
   // Handle video download
   const handleDownloadVideo = useCallback(
     async (url: string, prompt: string) => {
+      let blobUrl: string | null = null;
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -67,16 +90,20 @@ export function useVideoHistory() {
           return;
         }
         const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
+        blobUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = blobUrl;
         link.download = `${prompt.slice(0, 30).replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.mp4`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
       } catch {
         toast.error("Failed to download video");
+      } finally {
+        // Always revoke blob URL to prevent memory leaks
+        if (blobUrl) {
+          URL.revokeObjectURL(blobUrl);
+        }
       }
     },
     []
@@ -94,11 +121,14 @@ export function useVideoHistory() {
     isLoadingVideos,
     showResults,
     hasVideos: generatedVideos.length > 0,
+    hasMore,
+    isLoadingMore,
 
     // Actions
     setShowResults,
     addVideo,
     fetchVideos,
+    loadMoreVideos,
     handleDeleteVideo,
     handleDownloadVideo,
     handleCopyPrompt,

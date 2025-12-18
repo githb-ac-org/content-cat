@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { getApiKey } from "@/lib/services/apiKeyService";
+import { requireAuth } from "@/lib/auth-helpers";
 
 export async function POST(request: NextRequest) {
+  const { user, error: authError } = await requireAuth(request);
+  if (authError) return authError;
+
   try {
-    const apiKey = await getApiKey();
+    const apiKey = await getApiKey(user!.id);
     if (!apiKey) {
       return NextResponse.json(
         { error: "No API key. Add your fal.ai key in Settings." },
