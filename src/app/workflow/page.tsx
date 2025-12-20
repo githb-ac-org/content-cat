@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
+import type { Edge } from "@xyflow/react";
 import { toast } from "sonner";
 import { WorkflowCanvas } from "@/components/workflow";
 import WorkflowToolbar from "@/components/workflow/WorkflowToolbar";
@@ -17,6 +18,24 @@ import {
 } from "@/lib/api/workflows";
 import type { WorkflowNode } from "@/components/workflow/types";
 import type { SavedWorkflow } from "@/components/workflow/WorkflowBottomToolbar";
+
+// Download icon
+const DownloadIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+    <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// Import/Upload icon
+const ImportIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+    <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 // Node types that have configuration panels
 const CONFIGURABLE_NODE_TYPES = new Set([
@@ -40,6 +59,7 @@ function WorkflowPageContent() {
   const isInitialMount = useRef(true);
   const hasLoadedFromUrl = useRef(false);
   const workflowNameInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const { screenToFlowPosition } = useReactFlow();
   const {
     nodes,
@@ -372,6 +392,72 @@ function WorkflowPageContent() {
     }
   }, [executeAll]);
 
+  // Download current workflow as JSON file
+  const handleDownloadWorkflow = useCallback(() => {
+    const workflowData = {
+      name: workflowName,
+      nodes,
+      edges,
+      exportedAt: new Date().toISOString(),
+    };
+
+    const blob = new Blob([JSON.stringify(workflowData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${workflowName.replace(/[^a-z0-9]/gi, "_")}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Workflow downloaded");
+  }, [workflowName, nodes, edges]);
+
+  // Import workflow from JSON file
+  const handleImportWorkflow = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          const data = JSON.parse(content) as {
+            name?: string;
+            nodes?: WorkflowNode[];
+            edges?: Edge[];
+          };
+
+          if (!data.nodes || !Array.isArray(data.nodes)) {
+            toast.error("Invalid workflow file: missing nodes");
+            return;
+          }
+
+          // Reset to a new workflow with imported data
+          setWorkflowId(null);
+          setWorkflowName(data.name || "Imported Workflow");
+          setNodes(data.nodes);
+          setEdges(data.edges || []);
+          setHasUnsavedChanges(true);
+          isInitialMount.current = false;
+          clearSelection();
+          router.replace("/workflow", { scroll: false });
+          toast.success(`Imported "${data.name || "workflow"}"`);
+        } catch {
+          toast.error("Failed to parse workflow file");
+        }
+      };
+      reader.readAsText(file);
+
+      // Reset the input so the same file can be imported again
+      event.target.value = "";
+    },
+    [setNodes, setEdges, clearSelection, router]
+  );
+
   return (
     <WorkflowProvider
       undo={undo}
@@ -391,7 +477,7 @@ function WorkflowPageContent() {
             onDragOver={handleDragOver}
           >
             {/* Workflow Name Input */}
-            <div className="absolute top-4 left-4 z-10">
+            <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
               <input
                 ref={workflowNameInputRef}
                 type="text"
@@ -404,6 +490,32 @@ function WorkflowPageContent() {
                     : "border-white/10"
                 }`}
                 placeholder="Workflow name..."
+              />
+              {/* Import button */}
+              <button
+                type="button"
+                onClick={() => importInputRef.current?.click()}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-zinc-900/90 text-gray-400 backdrop-blur-xl transition-colors hover:border-white/20 hover:text-white"
+                title="Import workflow"
+              >
+                <ImportIcon />
+              </button>
+              {/* Download button */}
+              <button
+                type="button"
+                onClick={handleDownloadWorkflow}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-zinc-900/90 text-gray-400 backdrop-blur-xl transition-colors hover:border-white/20 hover:text-white"
+                title="Download workflow"
+              >
+                <DownloadIcon />
+              </button>
+              {/* Hidden file input for import */}
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportWorkflow}
+                className="hidden"
               />
             </div>
             <WorkflowCanvas
