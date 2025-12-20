@@ -93,6 +93,7 @@ function WorkflowPageContent() {
   const {
     executeNode,
     executeAll,
+    stopExecution,
     canExecuteNode,
     isExecuting,
     executingNodeId,
@@ -381,7 +382,9 @@ function WorkflowPageContent() {
   const handleRunAll = useCallback(async () => {
     toast.info("Running all nodes...");
     const result = await executeAll();
-    if (result.success) {
+    if (result.stopped) {
+      toast.info("Workflow execution stopped");
+    } else if (result.success) {
       toast.success(
         `Completed ${result.completed} node${result.completed !== 1 ? "s" : ""}`
       );
@@ -391,6 +394,12 @@ function WorkflowPageContent() {
       );
     }
   }, [executeAll]);
+
+  // Handle Stop All execution
+  const handleStopAll = useCallback(() => {
+    stopExecution();
+    toast.info("Stopping workflow...");
+  }, [stopExecution]);
 
   // Download current workflow as JSON file
   const handleDownloadWorkflow = useCallback(() => {
@@ -529,6 +538,7 @@ function WorkflowPageContent() {
               onDeleteNode={handleDeleteNode}
               onRunNode={handleRunNode}
               onRunAll={handleRunAll}
+              onStopAll={handleStopAll}
               isExecutingAll={isExecuting}
               executingCount={executingNodeIds.length}
               currentWorkflowId={workflowId}

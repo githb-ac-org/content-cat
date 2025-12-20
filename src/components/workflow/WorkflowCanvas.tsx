@@ -86,6 +86,7 @@ interface WorkflowCanvasProps {
   onDeleteNode?: (nodeId: string) => void;
   onRunNode?: (nodeId: string) => void;
   onRunAll?: () => void;
+  onStopAll?: () => void;
   isExecutingAll?: boolean;
   executingCount?: number;
   currentWorkflowId?: string | null;
@@ -104,6 +105,7 @@ function WorkflowCanvasInner({
   onDeleteNode,
   onRunNode,
   onRunAll,
+  onStopAll,
   isExecutingAll = false,
   executingCount = 0,
   currentWorkflowId,
@@ -271,9 +273,10 @@ function WorkflowCanvasInner({
         />
         <NodeActionMenu onRun={onRunNode} onDelete={onDeleteNode} />
       </ReactFlow>
-      {onRunAll && (
+      {onRunAll && onStopAll && (
         <RunAllButton
           onRunAll={onRunAll}
+          onStopAll={onStopAll}
           isExecuting={isExecutingAll}
           executingCount={executingCount}
         />

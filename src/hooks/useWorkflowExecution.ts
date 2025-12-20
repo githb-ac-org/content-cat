@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { apiFetch } from "@/lib/csrf";
@@ -174,6 +174,9 @@ export function useWorkflowExecution() {
     executingNodeIds: [],
     error: null,
   });
+
+  // Ref to track abort status for stopping execution
+  const abortRef = useRef(false);
 
   /**
    * Get all nodes connected to a target node's input handles
@@ -1234,6 +1237,28 @@ export function useWorkflowExecution() {
   );
 
   /**
+   * Stop all currently executing nodes
+   */
+  const stopExecution = useCallback(() => {
+    abortRef.current = true;
+
+    // Reset generating state on all nodes
+    setNodes((nodes) =>
+      nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, isGenerating: false },
+      }))
+    );
+
+    setState({
+      isExecuting: false,
+      executingNodeId: null,
+      executingNodeIds: [],
+      error: "Execution stopped by user",
+    });
+  }, [setNodes]);
+
+  /**
    * Execute all nodes in the workflow using DAG-based parallel execution
    * - Independent nodes run in parallel
    * - Nodes wait for their upstream dependencies to complete
@@ -1243,7 +1268,11 @@ export function useWorkflowExecution() {
     completed: number;
     failed: number;
     errors: string[];
+    stopped?: boolean;
   }> => {
+    // Reset abort flag at start
+    abortRef.current = false;
+
     const nodes = getNodes();
     const edges = getEdges();
 
@@ -1295,8 +1324,14 @@ export function useWorkflowExecution() {
      * Execute a single node and track its completion
      */
     const executeAndTrack = async (nodeId: string): Promise<void> => {
+      // Check if execution was stopped
+      if (abortRef.current) return;
+
       // Small delay to ensure React state has propagated from previous executions
       await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Check again after delay
+      if (abortRef.current) return;
 
       executing.add(nodeId);
       setState((prev) => ({
@@ -1306,6 +1341,9 @@ export function useWorkflowExecution() {
 
       try {
         const result = await executeNode(nodeId);
+        // Check if stopped during execution
+        if (abortRef.current) return;
+
         if (result.success) {
           completed.add(nodeId);
         } else {
@@ -1313,14 +1351,18 @@ export function useWorkflowExecution() {
           errors.push(`${nodeId}: ${result.error || "Unknown error"}`);
         }
       } catch {
-        failed.add(nodeId);
-        errors.push(`${nodeId}: Execution failed`);
+        if (!abortRef.current) {
+          failed.add(nodeId);
+          errors.push(`${nodeId}: Execution failed`);
+        }
       } finally {
         executing.delete(nodeId);
-        setState((prev) => ({
-          ...prev,
-          executingNodeIds: prev.executingNodeIds.filter((id) => id !== nodeId),
-        }));
+        if (!abortRef.current) {
+          setState((prev) => ({
+            ...prev,
+            executingNodeIds: prev.executingNodeIds.filter((id) => id !== nodeId),
+          }));
+        }
       }
     };
 
@@ -1328,6 +1370,17 @@ export function useWorkflowExecution() {
     const allNodeIds = new Set(executableNodes.map((n) => n.id));
 
     while (completed.size + failed.size < allNodeIds.size) {
+      // Check if execution was stopped
+      if (abortRef.current) {
+        return {
+          success: false,
+          completed: completed.size,
+          failed: failed.size,
+          errors,
+          stopped: true,
+        };
+      }
+
       // Find all nodes that are ready to execute
       const readyNodes = executableNodes
         .filter((n) => isReady(n.id))
@@ -1354,6 +1407,17 @@ export function useWorkflowExecution() {
 
       // Execute all ready nodes in parallel
       await Promise.all(readyNodes.map(executeAndTrack));
+    }
+
+    // Final check if stopped
+    if (abortRef.current) {
+      return {
+        success: false,
+        completed: completed.size,
+        failed: failed.size,
+        errors,
+        stopped: true,
+      };
     }
 
     setState({
@@ -1457,6 +1521,7 @@ export function useWorkflowExecution() {
   return {
     executeNode,
     executeAll,
+    stopExecution,
     canExecuteNode,
     getConnectedInputs,
     isExecuting: state.isExecuting,

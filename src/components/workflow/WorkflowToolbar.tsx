@@ -4,18 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 // Icons - 24x24 to match reference design
-const LogoIcon = () => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="white"
-    strokeWidth="2"
-  >
-    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-  </svg>
-);
 
 const ImageIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -255,7 +243,7 @@ export default function WorkflowToolbar() {
           aria-label="Go to homepage"
           className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-cyan-600 transition-transform hover:scale-105"
         >
-          <LogoIcon />
+          <span className="font-heading text-sm font-semibold text-white">C</span>
         </Link>
       </div>
 
