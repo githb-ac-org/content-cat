@@ -529,6 +529,25 @@ setup_prisma() {
     log_success "Database schema applied"
 }
 
+install_global_command() {
+    print_step "Installing global 'content-cat' command"
+
+    cd "$INSTALL_DIR"
+
+    # Make the CLI script executable
+    chmod +x scripts/content-cat
+
+    # Install to /usr/local/bin
+    if [[ -w /usr/local/bin ]]; then
+        cp scripts/content-cat /usr/local/bin/content-cat
+    else
+        sudo cp scripts/content-cat /usr/local/bin/content-cat
+    fi
+
+    log_success "Global command installed: content-cat"
+    log_info "Run 'content-cat help' to see available commands"
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # FINAL STEPS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -543,25 +562,29 @@ print_success() {
     echo "  ╚═══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 
-    echo -e "${WHITE}${BOLD}  Next Steps:${NC}"
+    echo -e "${WHITE}${BOLD}  Quick Start:${NC}"
     echo ""
-    echo -e "  ${ARROW} ${WHITE}1.${NC} Navigate to your project:"
-    echo -e "     ${DIM}cd $INSTALL_DIR${NC}"
+    echo -e "  ${ARROW} Start the app:"
+    echo -e "     ${CYAN}content-cat start${NC}"
     echo ""
-    echo -e "  ${ARROW} ${WHITE}2.${NC} Add your FAL.ai API key (optional):"
-    echo -e "     ${DIM}Edit .env and add your FAL_KEY${NC}"
-    echo -e "     ${DIM}Or configure it later in the app settings${NC}"
-    echo ""
-    echo -e "  ${ARROW} ${WHITE}3.${NC} Start the development server:"
-    echo -e "     ${DIM}pnpm dev${NC}"
-    echo ""
-    echo -e "  ${ARROW} ${WHITE}4.${NC} Open your browser:"
+    echo -e "  ${ARROW} Open your browser:"
     echo -e "     ${CYAN}http://localhost:3000${NC}"
     echo ""
     echo -e "${DIM}  ─────────────────────────────────────────────────────────────────${NC}"
     echo ""
-    echo -e "  ${INFO} ${DIM}Documentation:${NC} ${CYAN}https://github.com/UnstableMind/content-cat${NC}"
-    echo -e "  ${INFO} ${DIM}Get FAL.ai key:${NC} ${CYAN}https://fal.ai/dashboard/keys${NC}"
+    echo -e "${WHITE}${BOLD}  Available Commands:${NC}"
+    echo ""
+    echo -e "  ${DIM}content-cat start${NC}      Start development server"
+    echo -e "  ${DIM}content-cat docker${NC}     Start with Docker (production)"
+    echo -e "  ${DIM}content-cat docker:db${NC}  Start database services only"
+    echo -e "  ${DIM}content-cat update${NC}     Update to latest version"
+    echo -e "  ${DIM}content-cat stop${NC}       Stop all services"
+    echo -e "  ${DIM}content-cat help${NC}       Show all commands"
+    echo ""
+    echo -e "${DIM}  ─────────────────────────────────────────────────────────────────${NC}"
+    echo ""
+    echo -e "  ${INFO} ${DIM}Add your FAL.ai key:${NC} ${CYAN}https://fal.ai/dashboard/keys${NC}"
+    echo -e "     ${DIM}Configure in app settings or edit ~/.content-cat/.env${NC}"
     echo ""
 }
 
@@ -627,6 +650,7 @@ main() {
     install_dependencies
     setup_environment
     setup_prisma
+    install_global_command
 
     # Done!
     print_success

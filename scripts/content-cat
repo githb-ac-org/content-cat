@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+#
+# Content Cat - Global CLI Command
+#
+
+set -e
+
+INSTALL_DIR="$HOME/content-cat"
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+show_help() {
+    echo ""
+    echo -e "${CYAN}Content Cat${NC} - AI-powered image and video generation"
+    echo ""
+    echo "Usage: content-cat <command>"
+    echo ""
+    echo "Commands:"
+    echo "  start       Start the development server"
+    echo "  stop        Stop all running services"
+    echo "  build       Build for production"
+    echo "  prod        Start in production mode"
+    echo "  docker      Start with Docker (all services)"
+    echo "  docker:db   Start only database services"
+    echo "  update      Pull latest changes and update"
+    echo "  db:push     Push database schema changes"
+    echo "  db:studio   Open Prisma Studio"
+    echo "  logs        Show Docker logs"
+    echo "  status      Show service status"
+    echo "  help        Show this help"
+    echo ""
+}
+
+check_install() {
+    if [[ ! -d "$INSTALL_DIR" ]]; then
+        echo -e "${RED}Error:${NC} Content Cat not found at $INSTALL_DIR"
+        echo "Run the install script first:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/KenKaiii/content-cat/main/scripts/install.sh | bash"
+        exit 1
+    fi
+}
+
+cd_project() {
+    check_install
+    cd "$INSTALL_DIR"
+}
+
+case "${1:-help}" in
+    start|dev)
+        cd_project
+        echo -e "${GREEN}Starting Content Cat...${NC}"
+        pnpm dev
+        ;;
+    stop)
+        cd_project
+        echo -e "${YELLOW}Stopping services...${NC}"
+        pkill -f "next dev" 2>/dev/null || true
+        docker compose down 2>/dev/null || true
+        echo -e "${GREEN}Stopped${NC}"
+        ;;
+    build)
+        cd_project
+        echo -e "${CYAN}Building for production...${NC}"
+        pnpm build
+        ;;
+    prod|production)
+        cd_project
+        echo -e "${GREEN}Starting in production mode...${NC}"
+        pnpm build && pnpm start
+        ;;
+    docker)
+        cd_project
+        echo -e "${GREEN}Starting with Docker...${NC}"
+        docker compose --profile production up -d
+        echo -e "${GREEN}Running at http://localhost:3000${NC}"
+        ;;
+    docker:db|db)
+        cd_project
+        echo -e "${GREEN}Starting database services...${NC}"
+        docker compose up -d postgres redis
+        echo -e "${GREEN}PostgreSQL: localhost:5499 | Redis: localhost:6379${NC}"
+        ;;
+    update)
+        cd_project
+        echo -e "${CYAN}Updating Content Cat...${NC}"
+        git pull
+        pnpm install
+        pnpm prisma generate
+        pnpm prisma db push
+        echo -e "${GREEN}Updated!${NC}"
+        ;;
+    db:push|migrate)
+        cd_project
+        pnpm prisma db push
+        ;;
+    db:studio|studio)
+        cd_project
+        pnpm prisma studio
+        ;;
+    logs)
+        cd_project
+        docker compose logs -f
+        ;;
+    status)
+        cd_project
+        echo -e "${CYAN}Docker Services:${NC}"
+        docker compose ps 2>/dev/null || echo "  No Docker services running"
+        echo ""
+        echo -e "${CYAN}Dev Server:${NC}"
+        pgrep -f "next dev" >/dev/null && echo "  Running" || echo "  Not running"
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo -e "${RED}Unknown command:${NC} $1"
+        show_help
+        exit 1
+        ;;
+esac

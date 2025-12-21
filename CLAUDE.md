@@ -104,6 +104,20 @@ The script (`scripts/install.sh`) handles:
 - Dependencies: Node.js 20+, pnpm, PostgreSQL, Redis, Docker
 - Database setup and Prisma migrations
 - Secure `.env` generation
+- Global `content-cat` CLI command
+
+### Global CLI Commands
+
+After install, users can run:
+```bash
+content-cat start       # Start dev server
+content-cat docker      # Start with Docker (production)
+content-cat docker:db   # Start database services only
+content-cat update      # Pull latest and update deps
+content-cat stop        # Stop all services
+content-cat db:studio   # Open Prisma Studio
+content-cat help        # Show all commands
+```
 
 ### Docker Deployment
 
