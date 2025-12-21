@@ -76,3 +76,45 @@ pnpm dev
 ```
 
 Read server output and fix ALL warnings/errors.
+
+## Releases
+
+### Creating a Release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This triggers `.github/workflows/release.yml` which:
+- Creates a GitHub release with install instructions
+- Attaches `scripts/install.sh` with SHA256 checksum
+- Auto-generates release notes from commits
+
+### Install Script
+
+Users install with:
+```bash
+curl -fsSL https://raw.githubusercontent.com/KenKaiii/content-cat/main/scripts/install.sh | bash
+```
+
+The script (`scripts/install.sh`) handles:
+- OS detection (macOS, WSL, Linux)
+- Package manager detection (brew, apt, dnf, pacman)
+- Dependencies: Node.js 20+, pnpm, PostgreSQL, Redis, Docker
+- Database setup and Prisma migrations
+- Secure `.env` generation
+
+### Docker Deployment
+
+```bash
+# Development (DB only)
+docker compose up -d postgres redis
+
+# Production (full stack)
+docker compose --profile production up -d
+```
+
+Files:
+- `Dockerfile` - Multi-stage production build
+- `docker-compose.yml` - PostgreSQL, Redis, app services

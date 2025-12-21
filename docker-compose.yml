@@ -1,16 +1,111 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Content Cat - Docker Compose
+# Production-ready deployment with all services
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Quick Start:
+#   1. Copy .env.example to .env and configure
+#   2. Run: docker compose up -d
+#   3. Open: http://localhost:3000
+#
+# Commands:
+#   docker compose up -d          # Start all services
+#   docker compose down           # Stop all services
+#   docker compose logs -f app    # View app logs
+#   docker compose exec app sh    # Shell into app container
+#
+# Development (database only):
+#   docker compose up -d postgres redis
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
 services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Content Cat Application
+  # ─────────────────────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: content-cat
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-contentcat}:${POSTGRES_PASSWORD:-contentcat}@postgres:5432/${POSTGRES_DB:-contentcat}?schema=public
+      - REDIS_URL=redis://redis:6379
+      - SESSION_SECRET=${SESSION_SECRET}
+      - CRON_SECRET=${CRON_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - FAL_KEY=${FAL_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - content-cat-network
+    profiles:
+      - production
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PostgreSQL Database
+  # ─────────────────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: content-cat-db
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-contentcat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-contentcat}
     ports:
       - "${POSTGRES_PORT:-5499}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-contentcat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-contentcat}
+      POSTGRES_DB: ${POSTGRES_DB:-contentcat}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - content-cat-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-contentcat} -d ${POSTGRES_DB:-contentcat}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Redis Cache
+  # ─────────────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: content-cat-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - content-cat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Volumes
+# ─────────────────────────────────────────────────────────────────────────────
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Networks
+# ─────────────────────────────────────────────────────────────────────────────
+networks:
+  content-cat-network:
+    driver: bridge

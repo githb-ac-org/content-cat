@@ -1,0 +1,107 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Content Cat - Release Workflow
+# Creates GitHub releases when a version tag is pushed
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Usage:
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate checksums
+        id: checksums
+        run: |
+          SHA256_INSTALL=$(sha256sum scripts/install.sh | cut -d' ' -f1)
+          echo "SHA256_INSTALL=$SHA256_INSTALL" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Content Cat v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+          body: |
+            # Content Cat v${{ steps.version.outputs.VERSION }}
+
+            <div align="center">
+
+            **AI-powered image and video generation platform**
+
+            [Documentation](https://github.com/${{ github.repository }}#readme) · [Report Bug](https://github.com/${{ github.repository }}/issues)
+
+            </div>
+
+            ---
+
+            ## Quick Install
+
+            ### One-Line Install (macOS & Linux/WSL)
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash
+            ```
+
+            This script automatically installs all dependencies:
+            - Node.js 20+, pnpm, PostgreSQL, Redis, Docker
+
+            ---
+
+            ## Docker Install
+
+            ```bash
+            git clone https://github.com/${{ github.repository }}.git
+            cd content-cat
+            cp .env.example .env
+            docker compose --profile production up -d
+            ```
+
+            ---
+
+            ## Manual Install
+
+            ```bash
+            git clone https://github.com/${{ github.repository }}.git
+            cd content-cat
+            pnpm install
+            cp .env.example .env
+            pnpm prisma db push
+            pnpm dev
+            ```
+
+            ---
+
+            ## Checksums
+
+            ```
+            SHA256 (install.sh) = ${{ steps.checksums.outputs.SHA256_INSTALL }}
+            ```
+
+          files: |
+            scripts/install.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

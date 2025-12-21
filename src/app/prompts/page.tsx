@@ -88,6 +88,7 @@ function SearchInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-transparent text-sm text-white outline-none placeholder:text-gray-500"
+          suppressHydrationWarning
         />
       </label>
     </div>
