@@ -37,12 +37,13 @@ ok() { printf "  ${BR_GREEN}✓${RESET} %s\n" "$1"; }
 info() { printf "  ${BR_BLUE}→${RESET} ${DIM}%s${RESET}\n" "$1"; }
 warn() { printf "  ${BR_YELLOW}!${RESET} %s\n" "$1"; }
 
-# Find available port starting from 3000
+# Find available port starting from a given port
 find_available_port() {
-    local port=3000
+    local port=${1:-3000}
+    local max=${2:-$((port + 100))}
     while lsof -i :"$port" &>/dev/null; do
         ((port++))
-        [[ $port -gt 3100 ]] && break
+        [[ $port -gt $max ]] && break
     done
     echo "$port"
 }
@@ -111,21 +112,89 @@ find_project() {
 # SETUP FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Check if port is used by our container or something else
+is_port_available_or_ours() {
+    local port=$1
+    local container_name=$2
+
+    # Port not in use at all
+    if ! lsof -i :"$port" &>/dev/null; then
+        return 0
+    fi
+
+    # Check if our container is using it
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container_name}$"; then
+        local container_port=$(docker port "$container_name" 2>/dev/null | grep -o "0.0.0.0:$port" || true)
+        [[ -n "$container_port" ]] && return 0
+    fi
+
+    return 1
+}
+
+# Find available Docker ports (skip if our containers are using them)
+find_docker_ports() {
+    # Default ports
+    POSTGRES_PORT=5499
+    REDIS_PORT=6379
+
+    # Check PostgreSQL port
+    if ! is_port_available_or_ours $POSTGRES_PORT "content-cat-db"; then
+        POSTGRES_PORT=$(find_available_port 5499 5599)
+    fi
+
+    # Check Redis port
+    if ! is_port_available_or_ours $REDIS_PORT "content-cat-redis"; then
+        REDIS_PORT=$(find_available_port 6379 6479)
+    fi
+
+    export POSTGRES_PORT REDIS_PORT
+}
+
 ensure_env() {
-    [[ -f ".env" ]] && return 0
+    # Find available ports first
+    find_docker_ports
+
+    if [[ -f ".env" ]]; then
+        # Update existing .env with new ports if they changed (portable regex)
+        local current_pg_port=$(sed -n 's/.*localhost:\([0-9]*\)\/contentcat.*/\1/p' .env 2>/dev/null | head -1)
+        local current_redis_port=$(sed -n 's/.*redis:\/\/localhost:\([0-9]*\).*/\1/p' .env 2>/dev/null | head -1)
+        current_pg_port=${current_pg_port:-5499}
+        current_redis_port=${current_redis_port:-6379}
+
+        if [[ "$current_pg_port" != "$POSTGRES_PORT" ]] || [[ "$current_redis_port" != "$REDIS_PORT" ]]; then
+            # Update DATABASE_URL
+            sed -i.bak "s|localhost:[0-9]*/contentcat|localhost:${POSTGRES_PORT}/contentcat|g" .env
+            # Update REDIS_URL
+            sed -i.bak "s|redis://localhost:[0-9]*|redis://localhost:${REDIS_PORT}|g" .env
+            # Update port variables if they exist
+            sed -i.bak "s|^POSTGRES_PORT=.*|POSTGRES_PORT=${POSTGRES_PORT}|g" .env
+            sed -i.bak "s|^REDIS_PORT=.*|REDIS_PORT=${REDIS_PORT}|g" .env
+            rm -f .env.bak
+
+            if [[ "$current_pg_port" != "$POSTGRES_PORT" ]]; then
+                info "PostgreSQL port: $current_pg_port → $POSTGRES_PORT"
+            fi
+            if [[ "$current_redis_port" != "$REDIS_PORT" ]]; then
+                info "Redis port: $current_redis_port → $REDIS_PORT"
+            fi
+        fi
+        return 0
+    fi
 
     local session_secret=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 64)
     local cron_secret=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
     local encryption_key=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 64)
 
     cat > .env << EOF
-DATABASE_URL="postgresql://contentcat:contentcat@localhost:5499/contentcat?schema=public"
+DATABASE_URL="postgresql://contentcat:contentcat@localhost:${POSTGRES_PORT}/contentcat?schema=public"
 NODE_ENV="development"
 SESSION_SECRET="${session_secret}"
 SESSION_EXPIRY_DAYS=7
-REDIS_URL="redis://localhost:6379"
+REDIS_URL="redis://localhost:${REDIS_PORT}"
 CRON_SECRET="${cron_secret}"
 ENCRYPTION_KEY="${encryption_key}"
+POSTGRES_PORT=${POSTGRES_PORT}
+REDIS_PORT=${REDIS_PORT}
 EOF
 
     ok "Created .env"

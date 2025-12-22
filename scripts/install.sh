@@ -330,6 +330,17 @@ install_deps() {
     run_step "Installing dependencies" pnpm install --frozen-lockfile
 }
 
+# Find available port starting from a given port
+find_available_port() {
+    local port=${1:-3000}
+    local max=${2:-$((port + 100))}
+    while lsof -i :"$port" &>/dev/null; do
+        ((port++))
+        [[ $port -gt $max ]] && break
+    done
+    echo "$port"
+}
+
 setup_env() {
     cd "$INSTALL_DIR"
 
@@ -338,18 +349,31 @@ setup_env() {
         return 0
     fi
 
+    # Find available ports for Docker services
+    local pg_port=$(find_available_port 5499 5599)
+    local redis_port=$(find_available_port 6379 6479)
+
+    if [[ "$pg_port" != "5499" ]]; then
+        info "PostgreSQL using port $pg_port (5499 was taken)"
+    fi
+    if [[ "$redis_port" != "6379" ]]; then
+        info "Redis using port $redis_port (6379 was taken)"
+    fi
+
     local session_secret=$(openssl rand -hex 32)
     local cron_secret=$(openssl rand -hex 16)
     local encryption_key=$(openssl rand -hex 32)
 
     cat > .env << EOF
-DATABASE_URL="postgresql://contentcat:contentcat@localhost:5499/contentcat?schema=public"
+DATABASE_URL="postgresql://contentcat:contentcat@localhost:${pg_port}/contentcat?schema=public"
 NODE_ENV="development"
 SESSION_SECRET="${session_secret}"
 SESSION_EXPIRY_DAYS=7
-REDIS_URL="redis://localhost:6379"
+REDIS_URL="redis://localhost:${redis_port}"
 CRON_SECRET="${cron_secret}"
 ENCRYPTION_KEY="${encryption_key}"
+POSTGRES_PORT=${pg_port}
+REDIS_PORT=${redis_port}
 # FAL_KEY="your-fal-api-key"
 EOF
 
