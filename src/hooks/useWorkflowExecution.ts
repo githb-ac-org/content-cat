@@ -484,13 +484,13 @@ export function useWorkflowExecution() {
       nodeData: Kling26NodeData,
       inputs: ConnectedInput[]
     ): Promise<ExecutionResult> => {
-      const prompt = extractPrompt(inputs);
+      const prompt = extractPrompt(inputs) || nodeData.prompt;
       let imageUrl = extractImageUrl(inputs);
 
       if (!prompt) {
         return {
           success: false,
-          error: "No prompt provided. Connect a Prompt node.",
+          error: "No prompt provided. Enter a prompt or connect a Prompt node.",
         };
       }
 
@@ -566,7 +566,7 @@ export function useWorkflowExecution() {
       nodeData: Kling25TurboNodeData,
       inputs: ConnectedInput[]
     ): Promise<ExecutionResult> => {
-      const prompt = extractPrompt(inputs);
+      const prompt = extractPrompt(inputs) || nodeData.prompt;
 
       // Extract first frame image (from firstFrame handle or legacy image handle)
       const firstFrameInput = inputs.find(
@@ -594,7 +594,7 @@ export function useWorkflowExecution() {
       if (!prompt) {
         return {
           success: false,
-          error: "No prompt provided. Connect a Prompt node.",
+          error: "No prompt provided. Enter a prompt or connect a Prompt node.",
         };
       }
 
@@ -683,13 +683,13 @@ export function useWorkflowExecution() {
       nodeData: Wan26NodeData,
       inputs: ConnectedInput[]
     ): Promise<ExecutionResult> => {
-      const prompt = extractPrompt(inputs);
+      const prompt = extractPrompt(inputs) || nodeData.prompt;
       let imageUrl = extractImageUrl(inputs);
 
       if (!prompt) {
         return {
           success: false,
-          error: "No prompt provided. Connect a Prompt node.",
+          error: "No prompt provided. Enter a prompt or connect a Prompt node.",
         };
       }
 
