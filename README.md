@@ -1,6 +1,6 @@
 # Content Cat
 
-AI-powered image and video generation platform with a visual workflow builder.
+AI-powered image and video generation platform with a visual workflow builder by Ken Kai.
 
 ## Features
 
