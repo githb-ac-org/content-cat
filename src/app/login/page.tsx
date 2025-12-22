@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import InfoModal from "@/components/InfoModal";
 
 function LoginForm() {
   const router = useRouter();
@@ -12,6 +13,7 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   // Get redirect destination from query params
   const redirectTo = searchParams.get("from") || "/";
@@ -151,17 +153,21 @@ function LoginForm() {
             <button
               type="button"
               className="inline-grid grid-flow-col content-center gap-1.5 overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap transition hover:brightness-75"
-              onClick={() =>
-                alert(
-                  "To reset your password, run this command in the Content Cat directory:\n\npnpm reset-password"
-                )
-              }
+              onClick={() => setShowResetModal(true)}
             >
               Forgot Password
             </button>
           </div>
         </div>
       </main>
+
+      <InfoModal
+        isOpen={showResetModal}
+        title="Reset Password"
+        message="Run this command in the Content Cat directory to reset your password:"
+        command="pnpm reset-password"
+        onClose={() => setShowResetModal(false)}
+      />
     </div>
   );
 }
