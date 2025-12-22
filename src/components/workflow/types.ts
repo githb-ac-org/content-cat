@@ -138,6 +138,18 @@ export interface Seedream45NodeData extends BaseNodeData {
   productId?: string;
 }
 
+// Veo 3.1 (Video Generation - First/Last Frame) node data type
+export interface Veo31NodeData extends BaseNodeData {
+  prompt?: string;
+  videoUrl?: string;
+  isGenerating?: boolean;
+  mode?: "first-last-frame";
+  duration?: "4" | "6" | "8";
+  aspectRatio?: "auto" | "16:9" | "9:16" | "1:1";
+  resolution?: "720p" | "1080p";
+  generateAudio?: boolean;
+}
+
 // Video Concat node data type
 export type TransitionType =
   | "none"
@@ -220,6 +232,7 @@ export type WorkflowNodeData =
   | FileNodeData
   | Kling26NodeData
   | Kling25TurboNodeData
+  | Veo31NodeData
   | Wan26NodeData
   | NanoBananaProNodeData
   | Seedream45NodeData
@@ -244,6 +257,7 @@ export type NodeType =
   | "file"
   | "kling26"
   | "kling25Turbo"
+  | "veo31"
   | "wan26"
   | "nanoBananaPro"
   | "seedream45"

@@ -13,6 +13,7 @@ export {
   PreviewNode,
   Kling26Node,
   Kling25TurboNode,
+  Veo31Node,
   Wan26Node,
   Seedream45Node,
 } from "./nodes";
@@ -27,6 +28,7 @@ export type {
   PreviewNodeData,
   Kling26NodeData,
   Kling25TurboNodeData,
+  Veo31NodeData,
   Wan26NodeData,
   Seedream45NodeData,
   WorkflowNode,

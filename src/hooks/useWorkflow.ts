@@ -475,6 +475,16 @@ function getDefaultNodeData(type: NodeType): WorkflowNode["data"] {
         numImages: 1,
         enableSafetyChecker: true,
       };
+    case "veo31":
+      return {
+        label: "Veo 3.1",
+        prompt: "",
+        mode: "first-last-frame",
+        duration: "8",
+        aspectRatio: "auto",
+        resolution: "720p",
+        generateAudio: true,
+      };
     case "videoConcat":
       return {
         label: "Concat",

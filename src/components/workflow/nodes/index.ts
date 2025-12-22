@@ -7,6 +7,7 @@ export { default as VideoNode } from "./VideoNode";
 export { default as FileNode } from "./FileNode";
 export { default as Kling26Node } from "./Kling26Node";
 export { default as Kling25TurboNode } from "./Kling25TurboNode";
+export { default as Veo31Node } from "./Veo31Node";
 export { default as Wan26Node } from "./Wan26Node";
 export { default as NanoBananaProNode } from "./NanoBananaProNode";
 export { default as Seedream45Node } from "./Seedream45Node";

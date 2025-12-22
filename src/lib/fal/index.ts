@@ -156,6 +156,29 @@ export {
   SEEDREAM_45_MAX_DIMENSION,
 } from "./seedream-4.5";
 
+// Veo 3.1 - Video generation (First/Last Frame)
+export {
+  // Client
+  Veo31Client,
+  createVeo31Client,
+  // Model ID
+  VEO_31_MODEL,
+  // Types
+  type Veo31Duration,
+  type Veo31AspectRatio,
+  type Veo31Resolution,
+  type Veo31Input,
+  type Veo31Output,
+  // Constants
+  VEO_31_DURATIONS,
+  VEO_31_ASPECT_RATIOS,
+  VEO_31_RESOLUTIONS,
+  VEO_31_DEFAULT_DURATION,
+  VEO_31_DEFAULT_ASPECT_RATIO,
+  VEO_31_DEFAULT_RESOLUTION,
+  VEO_31_MAX_PROMPT_LENGTH as VEO_31_MAX_PROMPT_LENGTH,
+} from "./veo-3.1";
+
 // Video Configuration - UI to API mapping
 export {
   // Types

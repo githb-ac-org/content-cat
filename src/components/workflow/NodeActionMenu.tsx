@@ -10,6 +10,7 @@ const EXECUTABLE_NODE_TYPES = new Set([
   "seedream45",
   "kling26",
   "kling25Turbo",
+  "veo31",
   "wan26",
   "videoConcat",
   "videoSubtitles",

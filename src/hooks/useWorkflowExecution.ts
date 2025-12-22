@@ -13,6 +13,7 @@ import type {
   Seedream45NodeData,
   Kling26NodeData,
   Kling25TurboNodeData,
+  Veo31NodeData,
   Wan26NodeData,
   VideoConcatNodeData,
   VideoSubtitlesNodeData,
@@ -157,6 +158,7 @@ const EXECUTABLE_NODE_TYPES = new Set([
   "seedream45",
   "kling26",
   "kling25Turbo",
+  "veo31",
   "wan26",
   "videoConcat",
   "videoSubtitles",
@@ -290,6 +292,7 @@ export function useWorkflowExecution() {
           input.nodeType === "video" ||
           input.nodeType === "kling26" ||
           input.nodeType === "kling25Turbo" ||
+          input.nodeType === "veo31" ||
           input.nodeType === "wan26" ||
           (input.nodeType === "file" &&
             (input.data as FileNodeData).fileType === "video")
@@ -303,6 +306,7 @@ export function useWorkflowExecution() {
         if (
           videoInput.nodeType === "kling26" ||
           videoInput.nodeType === "kling25Turbo" ||
+          videoInput.nodeType === "veo31" ||
           videoInput.nodeType === "wan26"
         ) {
           const data = videoInput.data as { videoUrl?: string };
@@ -877,6 +881,117 @@ export function useWorkflowExecution() {
   );
 
   /**
+   * Execute Veo 3.1 (video generation - first/last frame) node
+   */
+  const executeVeo31 = useCallback(
+    async (
+      nodeId: string,
+      nodeData: Veo31NodeData,
+      inputs: ConnectedInput[]
+    ): Promise<ExecutionResult> => {
+      const prompt = extractPrompt(inputs) || nodeData.prompt;
+
+      // Extract first frame image (from firstFrame handle)
+      const firstFrameInput = inputs.find(
+        (input) => input.targetHandle === "firstFrame"
+      );
+      let firstFrameUrl: string | undefined;
+      if (firstFrameInput) {
+        const data = firstFrameInput.data as { imageUrl?: string };
+        firstFrameUrl = data.imageUrl;
+      }
+
+      // Extract last frame image (from lastFrame handle)
+      const lastFrameInput = inputs.find(
+        (input) => input.targetHandle === "lastFrame"
+      );
+      let lastFrameUrl: string | undefined;
+      if (lastFrameInput) {
+        const data = lastFrameInput.data as { imageUrl?: string };
+        lastFrameUrl = data.imageUrl;
+      }
+
+      if (!prompt) {
+        return {
+          success: false,
+          error: "No prompt provided. Enter a prompt describing the motion.",
+        };
+      }
+
+      if (!firstFrameUrl || !lastFrameUrl) {
+        return {
+          success: false,
+          error: "Both first frame and last frame images are required.",
+        };
+      }
+
+      // Convert local file URLs to data URLs for fal.ai
+      try {
+        firstFrameUrl = await convertToDataUrl(firstFrameUrl);
+      } catch {
+        return {
+          success: false,
+          error: "Failed to process first frame image",
+        };
+      }
+
+      try {
+        lastFrameUrl = await convertToDataUrl(lastFrameUrl);
+      } catch {
+        return {
+          success: false,
+          error: "Failed to process last frame image",
+        };
+      }
+
+      // Set generating state
+      updateNodeData(nodeId, { isGenerating: true });
+
+      const payload = {
+        prompt,
+        model: "veo-3.1",
+        mode: "first-last-frame",
+        firstFrameUrl,
+        lastFrameUrl,
+        duration: nodeData.duration || "8",
+        aspectRatio: nodeData.aspectRatio || "auto",
+        resolution: nodeData.resolution || "720p",
+        generateAudio: nodeData.generateAudio ?? true,
+      };
+
+      try {
+        const response = await apiFetch("/api/generate-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          timeout: 300000, // 5 minutes for video generation
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          updateNodeData(nodeId, { isGenerating: false });
+          return {
+            success: false,
+            error: result.error || "Video generation failed",
+          };
+        }
+
+        updateNodeData(nodeId, {
+          videoUrl: result.videoUrl || nodeData.videoUrl,
+          isGenerating: false,
+        });
+
+        return { success: true, data: result };
+      } catch {
+        updateNodeData(nodeId, { isGenerating: false });
+        throw new Error("Veo 3.1 video generation failed");
+      }
+    },
+    [extractPrompt, updateNodeData]
+  );
+
+  /**
    * Execute Video Concat node - concatenates multiple video inputs using FFmpeg
    */
   const executeVideoConcat = useCallback(
@@ -892,6 +1007,7 @@ export function useWorkflowExecution() {
             input.handleType === "video" ||
             input.nodeType === "kling26" ||
             input.nodeType === "kling25Turbo" ||
+            input.nodeType === "veo31" ||
             input.nodeType === "wan26" ||
             input.nodeType === "videoConcat" ||
             input.nodeType === "videoTrim" ||
@@ -1024,6 +1140,7 @@ export function useWorkflowExecution() {
           input.handleType === "video" ||
           input.nodeType === "kling26" ||
           input.nodeType === "kling25Turbo" ||
+          input.nodeType === "veo31" ||
           input.nodeType === "wan26" ||
           input.nodeType === "videoConcat" ||
           input.nodeType === "videoTrim" ||
@@ -1088,6 +1205,7 @@ export function useWorkflowExecution() {
           input.handleType === "video" ||
           input.nodeType === "kling26" ||
           input.nodeType === "kling25Turbo" ||
+          input.nodeType === "veo31" ||
           input.nodeType === "wan26" ||
           input.nodeType === "videoConcat" ||
           input.nodeType === "videoTrim" ||
@@ -1169,6 +1287,7 @@ export function useWorkflowExecution() {
             input.handleType === "video" ||
             input.nodeType === "kling26" ||
             input.nodeType === "kling25Turbo" ||
+            input.nodeType === "veo31" ||
             input.nodeType === "wan26" ||
             input.nodeType === "videoConcat" ||
             input.nodeType === "videoTrim" ||
@@ -1327,6 +1446,14 @@ export function useWorkflowExecution() {
             );
             break;
 
+          case "veo31":
+            result = await executeVeo31(
+              nodeId,
+              nodeData as Veo31NodeData,
+              inputs
+            );
+            break;
+
           case "videoConcat":
             result = await executeVideoConcat(
               nodeId,
@@ -1393,6 +1520,7 @@ export function useWorkflowExecution() {
       executeSeedream45,
       executeKling26,
       executeKling25Turbo,
+      executeVeo31,
       executeWan26,
       executeVideoConcat,
       executeVideoSubtitles,
@@ -1682,6 +1810,27 @@ export function useWorkflowExecution() {
           }
           return { canExecute: true };
 
+        case "veo31": {
+          const veoData = node.data as Veo31NodeData;
+          if (!prompt && !veoData.prompt) {
+            return { canExecute: false, reason: "Enter a prompt" };
+          }
+          // Check for first and last frame connections
+          const firstFrame = inputs.find(
+            (input) => input.targetHandle === "firstFrame"
+          );
+          const lastFrame = inputs.find(
+            (input) => input.targetHandle === "lastFrame"
+          );
+          if (!firstFrame || !lastFrame) {
+            return {
+              canExecute: false,
+              reason: "Connect both first and last frame images",
+            };
+          }
+          return { canExecute: true };
+        }
+
         case "videoConcat": {
           // Get all connected video inputs
           const videoInputs = inputs.filter(
@@ -1689,6 +1838,7 @@ export function useWorkflowExecution() {
               input.handleType === "video" ||
               input.nodeType === "kling26" ||
               input.nodeType === "kling25Turbo" ||
+              input.nodeType === "veo31" ||
               input.nodeType === "wan26" ||
               (input.nodeType === "file" &&
                 (input.data as FileNodeData).fileType === "video")
@@ -1712,6 +1862,7 @@ export function useWorkflowExecution() {
               input.handleType === "video" ||
               input.nodeType === "kling26" ||
               input.nodeType === "kling25Turbo" ||
+              input.nodeType === "veo31" ||
               input.nodeType === "wan26" ||
               (input.nodeType === "file" &&
                 (input.data as FileNodeData).fileType === "video")

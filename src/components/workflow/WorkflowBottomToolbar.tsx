@@ -291,6 +291,7 @@ interface NodeItem {
   label: string;
   icon: React.ReactNode;
   category: string;
+  badge?: string; // Optional badge to display (e.g., "First/Last Frame")
 }
 
 const nodeItems: NodeItem[] = [
@@ -311,6 +312,14 @@ const nodeItems: NodeItem[] = [
     label: "Kling 2.5 Turbo",
     icon: <ModelIcon />,
     category: "Video",
+    badge: "First/Last",
+  },
+  {
+    type: "veo31",
+    label: "Veo 3.1",
+    icon: <ModelIcon />,
+    category: "Video",
+    badge: "First/Last",
   },
   { type: "wan26", label: "Wan 2.6", icon: <ModelIcon />, category: "Video" },
   {
@@ -472,6 +481,7 @@ export default function WorkflowBottomToolbar({
         node.type === "seedream45" ||
         node.type === "kling26" ||
         node.type === "kling25Turbo" ||
+        node.type === "veo31" ||
         node.type === "wan26" ||
         node.type === "videoConcat" ||
         node.type === "videoSubtitles" ||
@@ -817,7 +827,12 @@ export default function WorkflowBottomToolbar({
                           className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                         >
                           <span className="text-white/50">{item.icon}</span>
-                          <span className="text-xs">{item.label}</span>
+                          <span className="flex-1 text-xs">{item.label}</span>
+                          {item.badge && (
+                            <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-medium text-purple-300">
+                              {item.badge}
+                            </span>
+                          )}
                         </button>
                       ))}
                   </div>
@@ -1089,6 +1104,14 @@ function getDefaultNodeData(type: NodeType) {
         mode: "text-to-video",
         duration: "5",
         cfgScale: 0.5,
+      };
+    case "veo31":
+      return {
+        label: "Veo 3.1",
+        mode: "first-last-frame",
+        duration: "8",
+        resolution: "720p",
+        generateAudio: true,
       };
     case "wan26":
       return {
