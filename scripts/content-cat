@@ -37,6 +37,16 @@ ok() { printf "  ${BR_GREEN}✓${RESET} %s\n" "$1"; }
 info() { printf "  ${BR_BLUE}→${RESET} ${DIM}%s${RESET}\n" "$1"; }
 warn() { printf "  ${BR_YELLOW}!${RESET} %s\n" "$1"; }
 
+# Find available port starting from 3000
+find_available_port() {
+    local port=3000
+    while lsof -i :"$port" &>/dev/null; do
+        ((port++))
+        [[ $port -gt 3100 ]] && break
+    done
+    echo "$port"
+}
+
 spinner() {
     local pid=$1
     local message=$2
@@ -278,7 +288,10 @@ EOF
 EOF
     printf "${RESET}"
     echo ""
-    printf "  ${DIM}Open in browser:${RESET}  ${BR_WHITE}http://localhost:3000${RESET}\n"
+
+    # Find available port
+    local PORT=$(find_available_port)
+    printf "  ${DIM}Open in browser:${RESET}  ${BR_WHITE}http://localhost:${PORT}${RESET}\n"
     echo ""
     printf "  ${BR_BLACK}─────────────────────────────────────────────────────────────────${RESET}\n"
     echo ""
@@ -293,7 +306,7 @@ EOF
         ensure_schema
     fi
 
-    exec pnpm dev
+    exec pnpm dev --port "$PORT"
 }
 
 main "$@"
