@@ -44,6 +44,9 @@ export default function RootLayout({
               border: "1px solid #3f3f46",
               color: "#fff",
             },
+            classNames: {
+              description: "!text-white/80",
+            },
           }}
         />
       </body>
