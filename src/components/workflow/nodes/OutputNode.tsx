@@ -47,6 +47,7 @@ export default function OutputNode({
               src={data.outputUrl}
               alt="Output"
               fill
+              unoptimized
               sizes="200px"
               className="rounded-lg object-contain"
             />

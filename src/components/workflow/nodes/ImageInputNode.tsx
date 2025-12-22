@@ -58,6 +58,7 @@ const ImageInputNode = memo(function ImageInputNode({
               src={data.imageUrl}
               alt="Input"
               fill
+              unoptimized
               sizes="200px"
               className="rounded-lg object-cover"
             />

@@ -306,6 +306,7 @@ const NanoBananaProNode = memo(function NanoBananaProNode({
                 src={data.imageUrl}
                 alt="Generated"
                 fill
+                unoptimized
                 sizes="200px"
                 className="object-cover"
               />

@@ -27,6 +27,7 @@ export default function PreviewNode({
               src={data.previewUrl}
               alt="Preview"
               fill
+              unoptimized
               sizes="200px"
               className="rounded-lg object-cover"
             />

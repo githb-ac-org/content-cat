@@ -362,6 +362,7 @@ const FileNode = memo(function FileNode({
                   src={data.imageUrl!}
                   alt="Uploaded"
                   fill
+                  unoptimized
                   sizes="200px"
                   className="object-cover"
                 />
