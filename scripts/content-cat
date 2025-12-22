@@ -112,39 +112,43 @@ find_project() {
 # SETUP FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Check if port is used by our container or something else
-is_port_available_or_ours() {
-    local port=$1
-    local container_name=$2
-
-    # Port not in use at all
-    if ! lsof -i :"$port" &>/dev/null; then
-        return 0
-    fi
-
-    # Check if our container is using it
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container_name}$"; then
-        local container_port=$(docker port "$container_name" 2>/dev/null | grep -o "0.0.0.0:$port" || true)
-        [[ -n "$container_port" ]] && return 0
-    fi
-
-    return 1
+# Get the host port a container is mapped to
+get_container_port() {
+    local container_name=$1
+    local internal_port=$2
+    docker port "$container_name" "$internal_port" 2>/dev/null | sed 's/.*://' | head -1
 }
 
-# Find available Docker ports (skip if our containers are using them)
+# Find available Docker ports (use existing container ports if running)
 find_docker_ports() {
     # Default ports
     POSTGRES_PORT=5499
     REDIS_PORT=6379
 
-    # Check PostgreSQL port
-    if ! is_port_available_or_ours $POSTGRES_PORT "content-cat-db"; then
-        POSTGRES_PORT=$(find_available_port 5499 5599)
+    # If our PostgreSQL container is running, use its current port
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^content-cat-db$"; then
+        local current_pg=$(get_container_port "content-cat-db" "5432")
+        if [[ -n "$current_pg" ]]; then
+            POSTGRES_PORT=$current_pg
+        fi
+    else
+        # Container not running - find available port
+        if lsof -i :$POSTGRES_PORT &>/dev/null; then
+            POSTGRES_PORT=$(find_available_port 5499 5599)
+        fi
     fi
 
-    # Check Redis port
-    if ! is_port_available_or_ours $REDIS_PORT "content-cat-redis"; then
-        REDIS_PORT=$(find_available_port 6379 6479)
+    # If our Redis container is running, use its current port
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^content-cat-redis$"; then
+        local current_redis=$(get_container_port "content-cat-redis" "6379")
+        if [[ -n "$current_redis" ]]; then
+            REDIS_PORT=$current_redis
+        fi
+    else
+        # Container not running - find available port
+        if lsof -i :$REDIS_PORT &>/dev/null; then
+            REDIS_PORT=$(find_available_port 6379 6479)
+        fi
     fi
 
     export POSTGRES_PORT REDIS_PORT
