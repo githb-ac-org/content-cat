@@ -45,6 +45,12 @@ const SPEED_OPTIONS = [
   { value: "fast", label: "Fast" },
 ];
 
+// Mode options
+const MODE_OPTIONS = [
+  { value: "image-to-video", label: "Img2Vid" },
+  { value: "first-last-frame", label: "First/Last" },
+];
+
 const PlayIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
     <path d="M8 5v14l11-7z" />
@@ -206,14 +212,21 @@ const Veo31Node = memo(function Veo31Node({
     [data.videoUrl]
   );
 
+  // Dynamic inputs based on mode
+  const mode = data.mode || "image-to-video";
+  const inputs =
+    mode === "first-last-frame"
+      ? [
+          { id: "firstFrame", label: "First Frame", color: "#F59E0B" },
+          { id: "lastFrame", label: "Last Frame", color: "#F59E0B" },
+        ]
+      : [{ id: "image", label: "Reference", color: "#F59E0B" }];
+
   return (
     <BaseNode
       label={data.label || "Veo 3.1"}
       selected={selected}
-      inputs={[
-        { id: "firstFrame", label: "First Frame", color: "#F59E0B" },
-        { id: "lastFrame", label: "Last Frame", color: "#F59E0B" },
-      ]}
+      inputs={inputs}
       outputs={[{ id: "video", label: "Video", color: "#EF9092" }]}
       isGenerating={data.isGenerating}
     >
@@ -305,11 +318,20 @@ const Veo31Node = memo(function Veo31Node({
         <PromptInput
           value={data.prompt || ""}
           onChange={(v) => updateData("prompt", v)}
-          placeholder="Describe the motion between frames..."
+          placeholder={
+            mode === "first-last-frame"
+              ? "Describe the motion between frames..."
+              : "Describe how the image should animate..."
+          }
         />
 
         {/* Settings badges */}
         <div className="flex flex-wrap items-center gap-1.5">
+          <DropdownBadge
+            value={data.mode || "image-to-video"}
+            options={MODE_OPTIONS}
+            onSelect={(v) => updateData("mode", v)}
+          />
           <DropdownBadge
             value={data.speed || "standard"}
             options={SPEED_OPTIONS}

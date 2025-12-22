@@ -319,7 +319,6 @@ const nodeItems: NodeItem[] = [
     label: "Veo 3.1",
     icon: <ModelIcon />,
     category: "Video",
-    badge: "First/Last",
   },
   { type: "wan26", label: "Wan 2.6", icon: <ModelIcon />, category: "Video" },
   {

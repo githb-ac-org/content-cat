@@ -479,7 +479,7 @@ function getDefaultNodeData(type: NodeType): WorkflowNode["data"] {
       return {
         label: "Veo 3.1",
         prompt: "",
-        mode: "first-last-frame",
+        mode: "image-to-video",
         duration: "8",
         aspectRatio: "auto",
         resolution: "720p",

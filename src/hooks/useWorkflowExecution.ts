@@ -881,7 +881,8 @@ export function useWorkflowExecution() {
   );
 
   /**
-   * Execute Veo 3.1 (video generation - first/last frame) node
+   * Execute Veo 3.1 (video generation) node
+   * Supports both image-to-video and first-last-frame modes
    */
   const executeVeo31 = useCallback(
     async (
@@ -890,75 +891,119 @@ export function useWorkflowExecution() {
       inputs: ConnectedInput[]
     ): Promise<ExecutionResult> => {
       const prompt = extractPrompt(inputs) || nodeData.prompt;
-
-      // Extract first frame image (from firstFrame handle)
-      const firstFrameInput = inputs.find(
-        (input) => input.targetHandle === "firstFrame"
-      );
-      let firstFrameUrl: string | undefined;
-      if (firstFrameInput) {
-        const data = firstFrameInput.data as { imageUrl?: string };
-        firstFrameUrl = data.imageUrl;
-      }
-
-      // Extract last frame image (from lastFrame handle)
-      const lastFrameInput = inputs.find(
-        (input) => input.targetHandle === "lastFrame"
-      );
-      let lastFrameUrl: string | undefined;
-      if (lastFrameInput) {
-        const data = lastFrameInput.data as { imageUrl?: string };
-        lastFrameUrl = data.imageUrl;
-      }
+      const mode = nodeData.mode || "image-to-video";
 
       if (!prompt) {
         return {
           success: false,
-          error: "No prompt provided. Enter a prompt describing the motion.",
-        };
-      }
-
-      if (!firstFrameUrl || !lastFrameUrl) {
-        return {
-          success: false,
-          error: "Both first frame and last frame images are required.",
-        };
-      }
-
-      // Convert local file URLs to data URLs for fal.ai
-      try {
-        firstFrameUrl = await convertToDataUrl(firstFrameUrl);
-      } catch {
-        return {
-          success: false,
-          error: "Failed to process first frame image",
-        };
-      }
-
-      try {
-        lastFrameUrl = await convertToDataUrl(lastFrameUrl);
-      } catch {
-        return {
-          success: false,
-          error: "Failed to process last frame image",
+          error: "No prompt provided. Enter a prompt describing the video.",
         };
       }
 
       // Set generating state
       updateNodeData(nodeId, { isGenerating: true });
 
-      const payload = {
-        prompt,
-        model: "veo-3.1",
-        mode: "first-last-frame",
-        firstFrameUrl,
-        lastFrameUrl,
-        duration: nodeData.duration || "8",
-        aspectRatio: nodeData.aspectRatio || "auto",
-        resolution: nodeData.resolution || "720p",
-        generateAudio: nodeData.generateAudio ?? true,
-        speed: nodeData.speed || "standard",
-      };
+      // Build payload based on mode
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let payload: Record<string, any>;
+
+      if (mode === "first-last-frame") {
+        // Extract first frame image (from firstFrame handle)
+        const firstFrameInput = inputs.find(
+          (input) => input.targetHandle === "firstFrame"
+        );
+        let firstFrameUrl: string | undefined;
+        if (firstFrameInput) {
+          const data = firstFrameInput.data as { imageUrl?: string };
+          firstFrameUrl = data.imageUrl;
+        }
+
+        // Extract last frame image (from lastFrame handle)
+        const lastFrameInput = inputs.find(
+          (input) => input.targetHandle === "lastFrame"
+        );
+        let lastFrameUrl: string | undefined;
+        if (lastFrameInput) {
+          const data = lastFrameInput.data as { imageUrl?: string };
+          lastFrameUrl = data.imageUrl;
+        }
+
+        if (!firstFrameUrl || !lastFrameUrl) {
+          updateNodeData(nodeId, { isGenerating: false });
+          return {
+            success: false,
+            error: "Both first frame and last frame images are required.",
+          };
+        }
+
+        // Convert local file URLs to data URLs for fal.ai
+        try {
+          firstFrameUrl = await convertToDataUrl(firstFrameUrl);
+        } catch {
+          updateNodeData(nodeId, { isGenerating: false });
+          return {
+            success: false,
+            error: "Failed to process first frame image",
+          };
+        }
+
+        try {
+          lastFrameUrl = await convertToDataUrl(lastFrameUrl);
+        } catch {
+          updateNodeData(nodeId, { isGenerating: false });
+          return {
+            success: false,
+            error: "Failed to process last frame image",
+          };
+        }
+
+        payload = {
+          prompt,
+          model: "veo-3.1",
+          mode: "first-last-frame",
+          firstFrameUrl,
+          lastFrameUrl,
+          duration: nodeData.duration || "8",
+          aspectRatio: nodeData.aspectRatio || "auto",
+          resolution: nodeData.resolution || "720p",
+          generateAudio: nodeData.generateAudio ?? true,
+          speed: nodeData.speed || "standard",
+        };
+      } else {
+        // Image-to-video mode
+        let imageUrl = extractImageUrl(inputs);
+
+        if (!imageUrl) {
+          updateNodeData(nodeId, { isGenerating: false });
+          return {
+            success: false,
+            error: "Reference image is required. Connect an image source.",
+          };
+        }
+
+        // Convert local file URLs to data URLs for fal.ai
+        try {
+          imageUrl = await convertToDataUrl(imageUrl);
+        } catch {
+          updateNodeData(nodeId, { isGenerating: false });
+          return {
+            success: false,
+            error: "Failed to process reference image",
+          };
+        }
+
+        payload = {
+          prompt,
+          model: "veo-3.1",
+          mode: "image-to-video",
+          imageUrl,
+          duration: nodeData.duration || "8",
+          aspectRatio: nodeData.aspectRatio || "auto",
+          resolution: nodeData.resolution || "720p",
+          generateAudio: nodeData.generateAudio ?? true,
+          speed: nodeData.speed || "standard",
+        };
+      }
 
       try {
         const response = await apiFetch("/api/generate-video", {
@@ -989,7 +1034,7 @@ export function useWorkflowExecution() {
         throw new Error("Veo 3.1 video generation failed");
       }
     },
-    [extractPrompt, updateNodeData]
+    [extractPrompt, extractImageUrl, updateNodeData]
   );
 
   /**
@@ -1816,18 +1861,32 @@ export function useWorkflowExecution() {
           if (!prompt && !veoData.prompt) {
             return { canExecute: false, reason: "Enter a prompt" };
           }
-          // Check for first and last frame connections
-          const firstFrame = inputs.find(
-            (input) => input.targetHandle === "firstFrame"
-          );
-          const lastFrame = inputs.find(
-            (input) => input.targetHandle === "lastFrame"
-          );
-          if (!firstFrame || !lastFrame) {
-            return {
-              canExecute: false,
-              reason: "Connect both first and last frame images",
-            };
+          const veoMode = veoData.mode || "image-to-video";
+          if (veoMode === "first-last-frame") {
+            // Check for first and last frame connections
+            const firstFrame = inputs.find(
+              (input) => input.targetHandle === "firstFrame"
+            );
+            const lastFrame = inputs.find(
+              (input) => input.targetHandle === "lastFrame"
+            );
+            if (!firstFrame || !lastFrame) {
+              return {
+                canExecute: false,
+                reason: "Connect both first and last frame images",
+              };
+            }
+          } else {
+            // Image-to-video mode - check for image input
+            const imageInput = inputs.find(
+              (input) => input.targetHandle === "image"
+            );
+            if (!imageInput) {
+              return {
+                canExecute: false,
+                reason: "Connect a reference image",
+              };
+            }
           }
           return { canExecute: true };
         }

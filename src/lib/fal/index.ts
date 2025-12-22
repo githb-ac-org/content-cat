@@ -156,7 +156,7 @@ export {
   SEEDREAM_45_MAX_DIMENSION,
 } from "./seedream-4.5";
 
-// Veo 3.1 - Video generation (First/Last Frame)
+// Veo 3.1 - Video generation
 export {
   // Client
   Veo31Client,
@@ -164,22 +164,29 @@ export {
   // Model IDs
   VEO_31_MODEL,
   VEO_31_FAST_MODEL,
+  VEO_31_I2V_MODEL,
+  VEO_31_I2V_FAST_MODEL,
   // Types
   type Veo31Duration,
   type Veo31AspectRatio,
   type Veo31Resolution,
   type Veo31Speed,
+  type Veo31Mode,
   type Veo31Input,
+  type Veo31FirstLastFrameInput,
+  type Veo31ImageToVideoInput,
   type Veo31Output,
   // Constants
   VEO_31_DURATIONS,
   VEO_31_ASPECT_RATIOS,
   VEO_31_RESOLUTIONS,
   VEO_31_SPEEDS,
+  VEO_31_MODES,
   VEO_31_DEFAULT_DURATION,
   VEO_31_DEFAULT_ASPECT_RATIO,
   VEO_31_DEFAULT_RESOLUTION,
   VEO_31_DEFAULT_SPEED,
+  VEO_31_DEFAULT_MODE,
   VEO_31_MAX_PROMPT_LENGTH as VEO_31_MAX_PROMPT_LENGTH,
 } from "./veo-3.1";
 
