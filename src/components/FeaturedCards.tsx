@@ -46,12 +46,6 @@ const featuredCards: FeaturedCard[] = [
     image: "/images/viral-shorts.jpg",
     href: "/viral-shorts",
   },
-  {
-    title: "PERSONAL BRANDING",
-    description: "Build your online presence with professional content",
-    image: "/images/personal-branding.jpg",
-    href: "/personal-branding",
-  },
 ];
 
 const FeaturedCard = memo(function FeaturedCard({

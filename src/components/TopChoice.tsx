@@ -70,11 +70,11 @@ const toolCards: ToolCard[] = [
     badge: { text: "NEW", variant: "new" },
   },
   {
-    title: "Gallery",
-    description: "Browse AI-generated masterpieces",
+    title: "AI Generator",
+    description: "Create stunning images from text",
     image: "/images/gallery-5.jpg",
     imageAfter: "/images/gallery-5.jpg",
-    href: "/gallery",
+    href: "/image",
   },
 ];
 
