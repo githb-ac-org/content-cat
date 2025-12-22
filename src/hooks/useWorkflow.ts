@@ -484,6 +484,7 @@ function getDefaultNodeData(type: NodeType): WorkflowNode["data"] {
         aspectRatio: "auto",
         resolution: "720p",
         generateAudio: true,
+        speed: "standard",
       };
     case "videoConcat":
       return {

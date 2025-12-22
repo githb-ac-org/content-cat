@@ -39,6 +39,12 @@ const RESOLUTION_OPTIONS = [
   { value: "1080p", label: "1080p" },
 ];
 
+// Speed options
+const SPEED_OPTIONS = [
+  { value: "standard", label: "Standard" },
+  { value: "fast", label: "Fast" },
+];
+
 const PlayIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
     <path d="M8 5v14l11-7z" />
@@ -304,6 +310,11 @@ const Veo31Node = memo(function Veo31Node({
 
         {/* Settings badges */}
         <div className="flex flex-wrap items-center gap-1.5">
+          <DropdownBadge
+            value={data.speed || "standard"}
+            options={SPEED_OPTIONS}
+            onSelect={(v) => updateData("speed", v)}
+          />
           <DropdownBadge
             value={data.aspectRatio || "auto"}
             options={ASPECT_RATIO_OPTIONS}

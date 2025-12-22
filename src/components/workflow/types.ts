@@ -148,6 +148,7 @@ export interface Veo31NodeData extends BaseNodeData {
   aspectRatio?: "auto" | "16:9" | "9:16" | "1:1";
   resolution?: "720p" | "1080p";
   generateAudio?: boolean;
+  speed?: "standard" | "fast";
 }
 
 // Video Concat node data type

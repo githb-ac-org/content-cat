@@ -957,6 +957,7 @@ export function useWorkflowExecution() {
         aspectRatio: nodeData.aspectRatio || "auto",
         resolution: nodeData.resolution || "720p",
         generateAudio: nodeData.generateAudio ?? true,
+        speed: nodeData.speed || "standard",
       };
 
       try {

@@ -2,7 +2,9 @@
  * Fal.ai Veo 3.1 API Module
  * Google's video generation model with first/last frame control
  *
- * Endpoint: fal-ai/veo3.1/first-last-frame-to-video
+ * Endpoints:
+ * - Standard: fal-ai/veo3.1/first-last-frame-to-video
+ * - Fast: fal-ai/veo3.1/fast/first-last-frame-to-video
  */
 
 import {
@@ -12,13 +14,15 @@ import {
   type FalVideo,
 } from "./client";
 
-// Model ID
+// Model IDs
 export const VEO_31_MODEL = "fal-ai/veo3.1/first-last-frame-to-video";
+export const VEO_31_FAST_MODEL = "fal-ai/veo3.1/fast/first-last-frame-to-video";
 
 // Types
 export type Veo31Duration = "4s" | "6s" | "8s";
 export type Veo31AspectRatio = "auto" | "9:16" | "16:9" | "1:1";
 export type Veo31Resolution = "720p" | "1080p";
+export type Veo31Speed = "standard" | "fast";
 
 // Input schema
 export interface Veo31Input {
@@ -36,6 +40,8 @@ export interface Veo31Input {
   resolution?: Veo31Resolution;
   /** Whether to generate audio for the video. Default: true */
   generate_audio?: boolean;
+  /** Speed/quality tradeoff. "fast" for quicker generation. Default: "standard" */
+  speed?: Veo31Speed;
 }
 
 // Output schema
@@ -53,10 +59,12 @@ export const VEO_31_ASPECT_RATIOS: Veo31AspectRatio[] = [
   "1:1",
 ];
 export const VEO_31_RESOLUTIONS: Veo31Resolution[] = ["720p", "1080p"];
+export const VEO_31_SPEEDS: Veo31Speed[] = ["standard", "fast"];
 
 export const VEO_31_DEFAULT_DURATION: Veo31Duration = "8s";
 export const VEO_31_DEFAULT_ASPECT_RATIO: Veo31AspectRatio = "auto";
 export const VEO_31_DEFAULT_RESOLUTION: Veo31Resolution = "720p";
+export const VEO_31_DEFAULT_SPEED: Veo31Speed = "standard";
 
 export const VEO_31_MAX_PROMPT_LENGTH = 5000;
 
@@ -98,8 +106,12 @@ export class Veo31Client {
       );
     }
 
+    // Select model based on speed setting
+    const modelId =
+      input.speed === "fast" ? VEO_31_FAST_MODEL : VEO_31_MODEL;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (fal.subscribe as any)(VEO_31_MODEL, {
+    const result = await (fal.subscribe as any)(modelId, {
       input: {
         first_frame_url: input.first_frame_url,
         last_frame_url: input.last_frame_url,
