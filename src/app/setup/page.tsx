@@ -4,28 +4,30 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function SetupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
 
-  // Check if setup is needed - redirect if no users exist
+  // Check if setup is needed
   useEffect(() => {
     async function checkSetup() {
       try {
         const res = await fetch("/api/auth/setup");
         const data = await res.json();
-        if (data.setupRequired) {
-          router.replace("/setup");
-          return;
+        if (!data.setupRequired) {
+          // Setup already complete, redirect to login
+          router.replace("/login");
         }
       } catch {
-        // If check fails, show login anyway
+        // If check fails, allow setup attempt
+      } finally {
+        setCheckingSetup(false);
       }
-      setCheckingSetup(false);
     }
     checkSetup();
   }, [router]);
@@ -36,22 +38,21 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, name }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Invalid credentials");
+        setError(data.error || "Failed to create account");
         return;
       }
 
-      // Redirect to home page on success
-      router.push("/");
-      router.refresh();
+      // Redirect to login on success
+      router.push("/login");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -82,8 +83,11 @@ export default function LoginPage() {
           {/* Title */}
           <div className="mb-8 flex w-full flex-col text-center">
             <h1 className="text-xl font-semibold text-white">
-              Log in to Content Cat
+              Welcome to Content Cat
             </h1>
+            <p className="mt-2 text-sm text-zinc-400">
+              Create your admin account to get started
+            </p>
           </div>
 
           {/* Form */}
@@ -98,6 +102,19 @@ export default function LoginPage() {
                   {error}
                 </div>
               )}
+
+              {/* Name input */}
+              <div className="grid w-full">
+                <input
+                  className="h-[42px] w-full rounded-xl border border-white/10 bg-black/40 px-4 text-sm font-medium text-white transition placeholder:text-zinc-400 hover:border-white/30 focus:border-pink-400/50 focus:bg-black/60 focus:outline-none backdrop-blur-sm"
+                  placeholder="Name (optional)"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  name="name"
+                  autoComplete="name"
+                />
+              </div>
 
               {/* Email input */}
               <div className="grid w-full">
@@ -123,34 +140,30 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   name="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                 />
+                <p className="mt-2 text-xs text-zinc-500">
+                  Min 8 characters with uppercase, lowercase, number & special character
+                </p>
               </div>
 
               {/* Submit button */}
               <input
                 className="inline-grid h-12 w-full max-w-full cursor-pointer content-center items-center justify-center overflow-hidden rounded-xl border border-transparent bg-[#e8e8e8] text-sm font-medium text-ellipsis whitespace-nowrap text-[#131313] ring-transparent transition hover:bg-[#d4d4d4] focus:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:bg-zinc-700 disabled:text-zinc-400"
                 type="submit"
-                value={isLoading ? "Logging in..." : "Log in"}
+                value={isLoading ? "Creating account..." : "Create Account"}
               />
             </fieldset>
           </form>
 
-          {/* Links */}
-          <div className="mt-4 flex justify-between text-zinc-300">
+          {/* Back link */}
+          <div className="mt-4 text-center">
             <Link
-              className="inline-grid grid-flow-col content-center gap-1.5 overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap transition hover:brightness-75"
+              className="text-sm font-medium text-zinc-300 transition hover:brightness-75"
               href="/"
             >
-              ← Back
+              ← Back to home
             </Link>
-            <button
-              type="button"
-              className="inline-grid grid-flow-col content-center gap-1.5 overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap transition hover:brightness-75"
-              onClick={() => alert("Contact admin to reset password")}
-            >
-              Forgot Password
-            </button>
           </div>
         </div>
       </main>
