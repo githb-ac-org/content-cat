@@ -34,7 +34,7 @@ const generateVideoSchema = z.object({
   mode: z
     .enum(["text-to-video", "image-to-video", "first-last-frame"])
     .default("text-to-video"),
-  duration: z.enum(["4", "5", "6", "8", "10", "15"]).default("5"),
+  duration: z.enum(["4", "5", "6", "8", "10", "15"]).default("5"), // Veo uses 4/6/8, others use 5/10/15
   aspectRatio: z
     .enum(["auto", "16:9", "9:16", "1:1", "4:3", "3:4"])
     .default("16:9"),

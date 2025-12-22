@@ -108,22 +108,36 @@ export function useVideoGeneration(options: UseVideoGenerationOptions = {}) {
     // Fire-and-forget generation
     const generateVideo = async () => {
       try {
+        // Build request payload
+        const payload: Record<string, unknown> = {
+          prompt: videoState.prompt,
+          model: videoState.model,
+          mode: videoState.mode,
+          aspectRatio: videoState.aspectRatio,
+          duration: videoState.duration,
+          resolution: videoState.resolution,
+          audioEnabled: videoState.audioEnabled,
+          enhanceEnabled: videoState.enhanceEnabled,
+          imageUrl: videoState.imageUrl,
+          endImageUrl: videoState.endImageUrl,
+          specialFx: videoState.specialFx,
+        };
+
+        // Add Veo 3.1 specific fields
+        if (videoState.model === "veo-3.1") {
+          payload.speed = videoState.speed || "standard";
+          payload.generateAudio = videoState.audioEnabled;
+          // For first-last-frame mode, map imageUrl/endImageUrl to firstFrameUrl/lastFrameUrl
+          if (videoState.mode === "first-last-frame") {
+            payload.firstFrameUrl = videoState.imageUrl;
+            payload.lastFrameUrl = videoState.endImageUrl;
+          }
+        }
+
         const response = await apiFetch("/api/generate-video", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: videoState.prompt,
-            model: videoState.model,
-            mode: videoState.mode,
-            aspectRatio: videoState.aspectRatio,
-            duration: videoState.duration,
-            resolution: videoState.resolution,
-            audioEnabled: videoState.audioEnabled,
-            enhanceEnabled: videoState.enhanceEnabled,
-            imageUrl: videoState.imageUrl,
-            endImageUrl: videoState.endImageUrl,
-            specialFx: videoState.specialFx,
-          }),
+          body: JSON.stringify(payload),
           timeout: 300000, // 5 minutes for video generation
         });
 

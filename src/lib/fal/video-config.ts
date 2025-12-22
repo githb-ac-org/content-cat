@@ -18,7 +18,7 @@ export type VideoMode =
 
 // Common types for UI
 export type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
-export type Duration = "5" | "10" | "15";
+export type Duration = "4" | "5" | "6" | "8" | "10" | "15"; // Veo uses 4, 6, 8; others use 5, 10, 15
 export type Resolution = "720p" | "1080p";
 
 // Model capability definitions
@@ -41,12 +41,18 @@ export interface VideoModelConfig {
   maxNegativePromptLength: number;
   maxImageSizeMB: number;
   pricing: {
-    per5s: number;
-    per10s: number;
+    per4s?: number; // Veo
+    per5s?: number;
+    per6s?: number; // Veo
+    per8s?: number; // Veo
+    per10s?: number;
     per15s?: number;
     audioMultiplier?: number;
   };
 }
+
+// Speed option for models that support fast mode
+export type VideoSpeed = "standard" | "fast";
 
 // UI State for video generation
 export interface VideoGenerationState {
@@ -65,6 +71,8 @@ export interface VideoGenerationState {
   cfgScale?: number;
   specialFx?: string;
   seed?: number;
+  // Veo 3.1 specific
+  speed?: VideoSpeed;
 }
 
 // Model configurations
@@ -145,7 +153,7 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelConfig> = {
     description: "Google's video model with image-to-video and first/last frame modes",
     modes: ["image-to-video", "first-last-frame"],
     aspectRatios: ["1:1", "16:9", "9:16"],
-    durations: ["5", "10"], // 4s, 6s, 8s mapped to 5, 10
+    durations: ["4", "6", "8"], // Veo uses 4s, 6s, 8s
     resolutions: ["720p", "1080p"],
     supportsAudio: true,
     supportsPromptEnhancement: false,
@@ -157,8 +165,9 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelConfig> = {
     maxNegativePromptLength: 0,
     maxImageSizeMB: 10,
     pricing: {
-      per5s: 0.5,
-      per10s: 1.0,
+      per4s: 0.4,
+      per6s: 0.6,
+      per8s: 0.8,
     },
   },
 };
@@ -176,16 +185,24 @@ export function getDefaultState(
   modelId: VideoModelId = "kling-2.6"
 ): VideoGenerationState {
   const config = VIDEO_MODELS[modelId];
+  // Use first available mode for the model (Veo doesn't support text-to-video)
+  const defaultMode = config.modes.includes("text-to-video")
+    ? "text-to-video"
+    : config.modes[0];
+  // Use first available duration for the model (Veo uses 4/6/8, others use 5/10/15)
+  const defaultDuration = config.durations[0] || "5";
   return {
     model: modelId,
-    mode: "text-to-video",
+    mode: defaultMode,
     prompt: "",
     aspectRatio: "16:9",
-    duration: "5",
+    duration: defaultDuration,
     resolution: config.resolutions?.[0],
     audioEnabled: config.supportsAudio,
     enhanceEnabled: false,
     cfgScale: config.supportsCfgScale ? 0.5 : undefined,
+    // Veo 3.1 specific defaults
+    speed: modelId === "veo-3.1" ? "standard" : undefined,
   };
 }
 
@@ -194,14 +211,23 @@ export function calculatePrice(state: VideoGenerationState): number {
   let price = 0;
 
   switch (state.duration) {
+    case "4":
+      price = config.pricing.per4s || 0;
+      break;
     case "5":
-      price = config.pricing.per5s;
+      price = config.pricing.per5s || 0;
+      break;
+    case "6":
+      price = config.pricing.per6s || 0;
+      break;
+    case "8":
+      price = config.pricing.per8s || 0;
       break;
     case "10":
-      price = config.pricing.per10s;
+      price = config.pricing.per10s || 0;
       break;
     case "15":
-      price = config.pricing.per15s || config.pricing.per10s * 1.5;
+      price = config.pricing.per15s || (config.pricing.per10s || 0) * 1.5;
       break;
   }
 

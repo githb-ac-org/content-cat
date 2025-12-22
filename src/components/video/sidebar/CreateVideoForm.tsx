@@ -10,6 +10,8 @@ import type {
   VideoDuration,
   VideoResolution,
   VideoModelConfig,
+  VideoMode,
+  VideoSpeed,
 } from "@/lib/fal";
 import { ChevronDownIcon, InfoIcon, EditIcon } from "../icons";
 import { getModelGroups } from "../constants";
@@ -166,6 +168,11 @@ export default function CreateVideoForm({
         onClearImage={onClearImage}
         onSwapImages={onSwapImages}
         singleImageUrl={videoState.imageUrl}
+        mode={
+          videoState.model === "veo-3.1"
+            ? (videoState.mode as "image-to-video" | "first-last-frame")
+            : undefined
+        }
       />
 
       {/* Prompt Section */}
@@ -207,6 +214,67 @@ export default function CreateVideoForm({
                   }`}
                 />
               </button>
+            </div>
+          </div>
+        </fieldset>
+      )}
+
+      {/* Veo 3.1 Mode & Speed Toggles */}
+      {videoState.model === "veo-3.1" && (
+        <fieldset>
+          <div className="flex gap-2">
+            {/* Mode Toggle */}
+            <div className="flex-1 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="mb-2 text-xs font-medium text-zinc-300">Mode</div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => onUpdateVideoState({ mode: "image-to-video" as VideoMode })}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition ${
+                    videoState.mode === "image-to-video"
+                      ? "bg-pink-400 text-black"
+                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  }`}
+                >
+                  Img2Vid
+                </button>
+                <button
+                  onClick={() => onUpdateVideoState({ mode: "first-last-frame" as VideoMode })}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition ${
+                    videoState.mode === "first-last-frame"
+                      ? "bg-pink-400 text-black"
+                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  }`}
+                >
+                  First/Last
+                </button>
+              </div>
+            </div>
+
+            {/* Speed Toggle */}
+            <div className="flex-1 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="mb-2 text-xs font-medium text-zinc-300">Speed</div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => onUpdateVideoState({ speed: "standard" as VideoSpeed })}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition ${
+                    (videoState.speed || "standard") === "standard"
+                      ? "bg-pink-400 text-black"
+                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  }`}
+                >
+                  Standard
+                </button>
+                <button
+                  onClick={() => onUpdateVideoState({ speed: "fast" as VideoSpeed })}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition ${
+                    videoState.speed === "fast"
+                      ? "bg-pink-400 text-black"
+                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  }`}
+                >
+                  Fast
+                </button>
+              </div>
             </div>
           </div>
         </fieldset>

@@ -23,6 +23,12 @@ export const WanIcon = () => (
   </svg>
 );
 
+export const VeoIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+  </svg>
+);
+
 // Badge icons for model dropdown
 export const ClockBadgeIcon = () => (
   <svg
@@ -443,10 +449,12 @@ export const MODEL_ICONS: Record<string, React.ReactNode> = {
   "kling-2.6": <KlingIcon />,
   "kling-2.5-turbo": <KlingIcon />,
   "wan-2.6": <WanIcon />,
+  "veo-3.1": <VeoIcon />,
 };
 
 export const MODEL_NAMES: Record<string, string> = {
   "kling-2.6": "Kling 2.6",
   "kling-2.5-turbo": "Kling 2.5 Turbo",
   "wan-2.6": "Wan 2.6",
+  "veo-3.1": "Veo 3.1",
 };

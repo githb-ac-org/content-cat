@@ -2,6 +2,7 @@ import type { NestedDropdownGroup } from "@/components/Dropdown";
 import {
   KlingIcon,
   WanIcon,
+  VeoIcon,
   ClockBadgeIcon,
   AudioBadgeIcon,
   EffectsBadgeIcon,
@@ -93,6 +94,23 @@ export const getModelGroups = (): NestedDropdownGroup[] => [
         description: "Multi-modal with reference support",
         badges: [
           { label: "5-15s", icon: ClockBadgeIcon() },
+          { label: "720p/1080p", icon: ResolutionBadgeIcon() },
+        ],
+      },
+    ],
+  },
+  {
+    id: "veo",
+    label: "Veo",
+    icon: VeoIcon(),
+    options: [
+      {
+        id: "veo-3.1",
+        label: "Veo 3.1",
+        description: "Image-to-video with first/last frame support",
+        badges: [
+          { label: "4-8s", icon: ClockBadgeIcon() },
+          { label: "Audio", icon: AudioBadgeIcon() },
           { label: "720p/1080p", icon: ResolutionBadgeIcon() },
         ],
       },

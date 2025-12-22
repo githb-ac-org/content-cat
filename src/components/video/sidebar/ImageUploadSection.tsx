@@ -19,6 +19,8 @@ interface ImageUploadSectionProps {
   onSwapImages: () => void;
   // For single image mode
   singleImageUrl?: string;
+  // Optional mode override for models like Veo 3.1 that support both modes
+  mode?: "image-to-video" | "first-last-frame";
 }
 
 export default function ImageUploadSection({
@@ -32,8 +34,16 @@ export default function ImageUploadSection({
   onClearImage,
   onSwapImages,
   singleImageUrl,
+  mode,
 }: ImageUploadSectionProps) {
-  if (supportsStartEndFrames) {
+  // Determine if we should show start/end frames UI
+  // For Veo 3.1: show start/end only in first-last-frame mode
+  // For other models: use supportsStartEndFrames flag
+  const showStartEndFrames = mode
+    ? mode === "first-last-frame"
+    : supportsStartEndFrames;
+
+  if (showStartEndFrames) {
     return (
       <div
         className="relative grid grid-cols-2 gap-2 select-none"

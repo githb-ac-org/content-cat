@@ -198,6 +198,7 @@ export {
   type AspectRatio as VideoAspectRatio,
   type Duration as VideoDuration,
   type Resolution as VideoResolution,
+  type VideoSpeed,
   type VideoModelConfig,
   type VideoGenerationState,
   // Constants
