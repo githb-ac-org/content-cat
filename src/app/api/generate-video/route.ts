@@ -4,9 +4,13 @@ import {
   createKling26Client,
   createKling25TurboClient,
   createWan26Client,
+  createVeo31Client,
   parseFalError,
   type VideoModelId,
   type Kling25TurboSpecialFx,
+  type Veo31Duration,
+  type Veo31AspectRatio,
+  type Veo31Resolution,
 } from "@/lib/fal";
 import { prisma } from "@/lib/prisma";
 import { getApiKey } from "@/lib/services/apiKeyService";
@@ -23,11 +27,17 @@ import { resolveImageForFal } from "@/lib/storage";
 
 // Zod schema for video generation request
 const generateVideoSchema = z.object({
-  prompt: z.string().min(1, "Prompt is required").max(2500, "Prompt too long"),
-  model: z.enum(["kling-2.6", "kling-2.5-turbo", "wan-2.6"]).default("kling-2.6"),
-  mode: z.enum(["text-to-video", "image-to-video"]).default("text-to-video"),
-  duration: z.enum(["5", "10", "15"]).default("5"),
-  aspectRatio: z.enum(["16:9", "9:16", "1:1", "4:3", "3:4"]).default("16:9"),
+  prompt: z.string().min(1, "Prompt is required").max(5000, "Prompt too long"),
+  model: z
+    .enum(["kling-2.6", "kling-2.5-turbo", "wan-2.6", "veo-3.1"])
+    .default("kling-2.6"),
+  mode: z
+    .enum(["text-to-video", "image-to-video", "first-last-frame"])
+    .default("text-to-video"),
+  duration: z.enum(["4", "5", "6", "8", "10", "15"]).default("5"),
+  aspectRatio: z
+    .enum(["auto", "16:9", "9:16", "1:1", "4:3", "3:4"])
+    .default("16:9"),
   resolution: z.enum(["480p", "720p", "1080p"]).optional(),
   audioEnabled: z.boolean().default(false),
   enhanceEnabled: z.boolean().default(false),
@@ -37,6 +47,11 @@ const generateVideoSchema = z.object({
   cfgScale: z.number().min(0).max(1).default(0.5),
   seed: z.number().int().optional(),
   specialFx: z.string().optional(),
+  // Veo 3.1 specific fields
+  firstFrameUrl: z.string().optional(),
+  lastFrameUrl: z.string().optional(),
+  generateAudio: z.boolean().default(true),
+  speed: z.enum(["standard", "fast"]).default("standard"),
 });
 
 export async function POST(request: NextRequest) {
@@ -90,6 +105,11 @@ export async function POST(request: NextRequest) {
       cfgScale,
       seed,
       specialFx,
+      // Veo 3.1 specific
+      firstFrameUrl,
+      lastFrameUrl,
+      generateAudio,
+      speed,
     } = parseResult.data;
 
     const apiKey = await getApiKey(user!.id);
@@ -114,12 +134,17 @@ export async function POST(request: NextRequest) {
       audioEnabled,
       hasImageUrl: !!imageUrl,
       hasEndImageUrl: !!endImageUrl,
+      hasFirstFrameUrl: !!firstFrameUrl,
+      hasLastFrameUrl: !!lastFrameUrl,
+      speed,
     });
 
     // Resolve local file URLs to base64 for FAL.ai
     // (FAL.ai can't access our local /api/files/ URLs)
     const resolvedImageUrl = await resolveImageForFal(imageUrl);
     const resolvedEndImageUrl = await resolveImageForFal(endImageUrl);
+    const resolvedFirstFrameUrl = await resolveImageForFal(firstFrameUrl);
+    const resolvedLastFrameUrl = await resolveImageForFal(lastFrameUrl);
 
     // Generate video with timeout protection
     const generateVideo = async (): Promise<{
@@ -211,6 +236,44 @@ export async function POST(request: NextRequest) {
               enable_prompt_expansion: enhanceEnabled ?? false,
               negative_prompt: negativePrompt,
               seed,
+            });
+          }
+        }
+
+        case "veo-3.1": {
+          const client = createVeo31Client(apiKey);
+          if (mode === "first-last-frame") {
+            // First/Last frame mode
+            if (!resolvedFirstFrameUrl || !resolvedLastFrameUrl) {
+              throw new Error(
+                "First frame and last frame URLs are required for first-last-frame mode"
+              );
+            }
+            return client.generateVideo({
+              prompt,
+              first_frame_url: resolvedFirstFrameUrl,
+              last_frame_url: resolvedLastFrameUrl,
+              duration: `${duration}s` as Veo31Duration,
+              aspect_ratio: aspectRatio as Veo31AspectRatio,
+              resolution: (resolution || "720p") as Veo31Resolution,
+              generate_audio: generateAudio ?? true,
+              speed: speed as "standard" | "fast",
+            });
+          } else {
+            // Image-to-video mode
+            if (!resolvedImageUrl) {
+              throw new Error(
+                "Image URL is required for image-to-video mode"
+              );
+            }
+            return client.generateImageToVideo({
+              prompt,
+              image_url: resolvedImageUrl,
+              duration: `${duration}s` as Veo31Duration,
+              aspect_ratio: aspectRatio as Veo31AspectRatio,
+              resolution: (resolution || "720p") as Veo31Resolution,
+              generate_audio: generateAudio ?? true,
+              speed: speed as "standard" | "fast",
             });
           }
         }

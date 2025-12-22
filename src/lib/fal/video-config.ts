@@ -4,12 +4,17 @@
  */
 
 // Available video models
-export type VideoModelId = "kling-2.6" | "kling-2.5-turbo" | "wan-2.6";
+export type VideoModelId =
+  | "kling-2.6"
+  | "kling-2.5-turbo"
+  | "wan-2.6"
+  | "veo-3.1";
 
 export type VideoMode =
   | "text-to-video"
   | "image-to-video"
-  | "reference-to-video";
+  | "reference-to-video"
+  | "first-last-frame";
 
 // Common types for UI
 export type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
@@ -131,6 +136,29 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelConfig> = {
       per5s: 0.25,
       per10s: 0.5,
       per15s: 0.75,
+    },
+  },
+  "veo-3.1": {
+    id: "veo-3.1",
+    name: "Veo 3.1",
+    shortName: "Veo",
+    description: "Google's video model with image-to-video and first/last frame modes",
+    modes: ["image-to-video", "first-last-frame"],
+    aspectRatios: ["1:1", "16:9", "9:16"],
+    durations: ["5", "10"], // 4s, 6s, 8s mapped to 5, 10
+    resolutions: ["720p", "1080p"],
+    supportsAudio: true,
+    supportsPromptEnhancement: false,
+    supportsNegativePrompt: false,
+    supportsCfgScale: false,
+    supportsSpecialFx: false,
+    supportsStartEndFrames: true,
+    maxPromptLength: 5000,
+    maxNegativePromptLength: 0,
+    maxImageSizeMB: 10,
+    pricing: {
+      per5s: 0.5,
+      per10s: 1.0,
     },
   },
 };
@@ -335,6 +363,14 @@ export function toApiParams(state: VideoGenerationState) {
       return toKling25TurboParams(state);
     case "wan-2.6":
       return toWan26Params(state);
+    case "veo-3.1":
+      // Veo 3.1 uses different API patterns, handled separately
+      return {
+        prompt: state.prompt,
+        duration: state.duration,
+        resolution: state.resolution || "720p",
+        generate_audio: state.audioEnabled,
+      };
     default:
       throw new Error(`Unknown model: ${state.model}`);
   }
