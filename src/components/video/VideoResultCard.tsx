@@ -417,6 +417,7 @@ const VideoResultCard = memo(function VideoResultCard({
                         src={video.startImageUrl}
                         alt="Start image"
                         fill
+                        unoptimized
                         className="object-cover"
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -449,6 +450,7 @@ const VideoResultCard = memo(function VideoResultCard({
                         src={video.endImageUrl}
                         alt="End image"
                         fill
+                        unoptimized
                         className="object-cover"
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">

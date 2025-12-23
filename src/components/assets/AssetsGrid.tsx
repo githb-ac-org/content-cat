@@ -299,6 +299,7 @@ export default function AssetsGrid({
                           src={thumbnailUrl}
                           alt="selected asset"
                           fill
+                          unoptimized
                           className="object-cover"
                           sizes="16px"
                         />
@@ -315,6 +316,7 @@ export default function AssetsGrid({
                         src={asset.url}
                         alt="selected asset"
                         fill
+                        unoptimized
                         className="object-cover"
                         sizes="16px"
                       />

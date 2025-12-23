@@ -226,6 +226,7 @@ export default function ImageDetailPanel({
               src={image.url}
               alt="thumbnail"
               fill
+              unoptimized
               className="object-cover"
               sizes="40px"
             />
